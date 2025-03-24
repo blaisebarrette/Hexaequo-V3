@@ -708,13 +708,28 @@ export class ThreeRenderer {
         
         this.raycaster.setFromCamera(this.mouse, this.camera);
         
-        // Make sure discIcon is visible and check intersections
-        if (!this.discIcon.visible) return false;
+        // Check for intersections with UI elements that are disc icons
+        const intersects = this.raycaster.intersectObjects(this.uiGroup.children, true);
+        console.log('UI intersections found:', intersects.length);
         
-        // Use a more precise intersection test
-        const intersects = this.raycaster.intersectObject(this.discIcon, true);
+        for (const intersect of intersects) {
+            let object = intersect.object;
+            // Traverse up to find the object with userData
+            while (object && !object.userData) {
+                object = object.parent;
+            }
+            
+            if (object && object.userData) {
+                console.log('Found object with userData:', object.userData);
+                if (object.userData.type === 'ui-icon' && 
+                    object.userData.pieceType === 'disc') {
+                    console.log('Disc icon clicked');
+                    return true;
+                }
+            }
+        }
         
-        return intersects.length > 0;
+        return false;
     }
     
     /**
@@ -729,13 +744,28 @@ export class ThreeRenderer {
         
         this.raycaster.setFromCamera(this.mouse, this.camera);
         
-        // Make sure ringIcon is visible and check intersections
-        if (!this.ringIcon.visible) return false;
+        // Check for intersections with UI elements that are ring icons
+        const intersects = this.raycaster.intersectObjects(this.uiGroup.children, true);
+        console.log('UI intersections found:', intersects.length);
         
-        // Use a more precise intersection test
-        const intersects = this.raycaster.intersectObject(this.ringIcon, true);
+        for (const intersect of intersects) {
+            let object = intersect.object;
+            // Traverse up to find the object with userData
+            while (object && !object.userData) {
+                object = object.parent;
+            }
+            
+            if (object && object.userData) {
+                console.log('Found object with userData:', object.userData);
+                if (object.userData.type === 'ui-icon' && 
+                    object.userData.pieceType === 'ring') {
+                    console.log('Ring icon clicked');
+                    return true;
+                }
+            }
+        }
         
-        return intersects.length > 0;
+        return false;
     }
     
     /**
@@ -850,18 +880,99 @@ export class ThreeRenderer {
         this.uiGroup.add(tempRef);
         
         if (canPlaceDisc && canPlaceRing) {
-            // Show both disc and ring icons
-            this.discIcon.position.set(position.x - 0.5, POSITIONS.UI_ICON_HEIGHT, position.z);
-            this.ringIcon.position.set(position.x + 0.5, POSITIONS.UI_ICON_HEIGHT, position.z);
+            // Show both disc and ring models
+            const discModel = this.models[`disc_${color}`].clone();
+            const ringModel = this.models[`ring_${color}`].clone();
             
-            this.discIcon.visible = true;
-            this.ringIcon.visible = true;
+            // Scale down the models
+            const discScale = 0.8; // Reduced from 0.8 to match single piece case
+            const ringScale = 0.5; // Reduced from 0.5 to match single piece case
+            discModel.scale.set(discScale, discScale, discScale);
+            ringModel.scale.set(ringScale, ringScale, ringScale);
+            
+            // Rotate 90 degrees to be on the vertical plane
+            discModel.rotation.x = Math.PI / 2;
+            ringModel.rotation.x = Math.PI / 2;
+            
+            // Position the models
+            discModel.position.set(position.x - 0.5, POSITIONS.UI_ICON_HEIGHT, position.z);
+            ringModel.position.set(position.x + 0.5, POSITIONS.UI_ICON_HEIGHT, position.z);
+            
+            // Add user data for click detection to both the model and its children
+            const discUserData = { 
+                type: 'ui-icon', 
+                pieceType: 'disc', 
+                q, 
+                r, 
+                color,
+                action: 'place_piece'
+            };
+            const ringUserData = { 
+                type: 'ui-icon', 
+                pieceType: 'ring', 
+                q, 
+                r, 
+                color,
+                action: 'place_piece'
+            };
+            
+            // Set userData on the models
+            discModel.userData = discUserData;
+            ringModel.userData = ringUserData;
+            
+            // Set userData on all children of the models
+            discModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.userData = discUserData;
+                }
+            });
+            ringModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.userData = ringUserData;
+                }
+            });
+            
+            // Add to UI group
+            this.uiGroup.add(discModel);
+            this.uiGroup.add(ringModel);
+            
+            // Hide the validate icon since we're showing both options
             this.validateIcon.visible = false;
+            
+            console.log('Added both disc and ring models to UI group');
         } else if (canPlaceDisc) {
-            // Show only disc icon with validation
+            // Show only disc model with validation
             const model = this.models[`disc_${color}`].clone();
-            model.position.set(position.x, POSITIONS.PIECE_FLOATING_HEIGHT, position.z);
-            model.userData = { type: 'temp-piece', pieceType: 'disc', q, r, color };
+            
+            // Scale down the model
+            const scale = 0.3;
+            model.scale.set(scale, scale, scale);
+            
+            // Rotate 90 degrees to be on the vertical plane
+            model.rotation.x = Math.PI / 2;
+            
+            model.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z);
+            
+            // Add user data for click detection to both the model and its children
+            const userData = { 
+                type: 'ui-icon', 
+                pieceType: 'disc', 
+                q, 
+                r, 
+                color,
+                action: 'place_piece'
+            };
+            
+            // Set userData on the model
+            model.userData = userData;
+            
+            // Set userData on all children of the model
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.userData = userData;
+                }
+            });
+            
             this.uiGroup.add(model);
             
             this.validateIcon.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z + 0.5);
@@ -869,11 +980,41 @@ export class ThreeRenderer {
             
             // Update selected piece type
             this.gameState.selectedPiece = { type: 'disc', q, r };
+            
+            console.log('Added disc model to UI group');
         } else if (canPlaceRing) {
-            // Show only ring icon with validation
+            // Show only ring model with validation
             const model = this.models[`ring_${color}`].clone();
-            model.position.set(position.x, POSITIONS.PIECE_FLOATING_HEIGHT, position.z);
-            model.userData = { type: 'temp-piece', pieceType: 'ring', q, r, color };
+            
+            // Scale down the model
+            const scale = 0.3;
+            model.scale.set(scale, scale, scale);
+            
+            // Rotate 90 degrees to be on the vertical plane
+            model.rotation.x = Math.PI / 2;
+            
+            model.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z);
+            
+            // Add user data for click detection to both the model and its children
+            const userData = { 
+                type: 'ui-icon', 
+                pieceType: 'ring', 
+                q, 
+                r, 
+                color,
+                action: 'place_piece'
+            };
+            
+            // Set userData on the model
+            model.userData = userData;
+            
+            // Set userData on all children of the model
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.userData = userData;
+                }
+            });
+            
             this.uiGroup.add(model);
             
             this.validateIcon.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z + 0.5);
@@ -881,6 +1022,8 @@ export class ThreeRenderer {
             
             // Update selected piece type
             this.gameState.selectedPiece = { type: 'ring', q, r };
+            
+            console.log('Added ring model to UI group');
         }
     }
     
@@ -1258,10 +1401,12 @@ export class ThreeRenderer {
         this.discIcon.visible = false;
         this.ringIcon.visible = false;
         
-        // Remove temporary tiles/pieces
+        // Remove temporary tiles/pieces and UI icons
         for (let i = this.uiGroup.children.length - 1; i >= 0; i--) {
             const child = this.uiGroup.children[i];
-            if (child.userData && (child.userData.type === 'temp-tile' || child.userData.type === 'temp-piece')) {
+            if (child.userData && (child.userData.type === 'temp-tile' || 
+                                   child.userData.type === 'temp-piece' || 
+                                   child.userData.type === 'ui-icon')) {
                 this.uiGroup.remove(child);
             }
         }
