@@ -16,6 +16,7 @@ export class UIManager {
         this.showValidMovesCheckbox = document.getElementById('show-valid-moves');
         this.darkModeCheckbox = document.getElementById('dark-mode');
         this.rulesButton = document.getElementById('rules-button');
+        this.newGameButton = document.getElementById('new-game-button');
         
         // Piece counters
         this.counters = {
@@ -91,6 +92,11 @@ export class UIManager {
         // Toggle valid move indicators when the checkbox is changed
         document.getElementById('show-valid-moves').addEventListener('change', () => {
             this.renderer.updateValidMovesVisibility();
+        });
+        
+        // New Game button
+        this.newGameButton.addEventListener('click', () => {
+            this.startNewGame();
         });
     }
     
@@ -256,5 +262,24 @@ export class UIManager {
                 </li>
             </ul>
         `;
+    }
+    
+    /**
+     * Start a new game by resetting the game state
+     */
+    startNewGame() {
+        if (confirm('Are you sure you want to start a new game? Current progress will be lost.')) {
+            // Reset the game state
+            this.gameState.reset();
+            this.gameState.setupNewGame();
+            
+            // Reset the renderer
+            this.renderer.clearActionUI();
+            // Fully reset the visual board instead of just updating it
+            this.renderer.setupScene();
+            
+            // Update the UI
+            this.updateUI();
+        }
     }
 } 
