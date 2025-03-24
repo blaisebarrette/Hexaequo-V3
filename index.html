@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexaequo</title>
+    <meta name="description" content="A minimalist web interface for the board game Hexaequo">
+    
+    <!-- PWA support -->
+    <link rel="icon" href="src/assets/icons/favicon.ico">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192x192.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="src/css/main.css">
+    
+    <!-- Remove the old Three.js script tags - we'll import them in the modules -->
+</head>
+<body>
+    <div class="game-container">
+        <!-- 3D Game Board -->
+        <div id="game-board"></div>
+        
+        <!-- Game Status Panel -->
+        <div id="game-status">
+            <div id="current-player">Black player's turn</div>
+            
+            <div class="player-stats">
+                <div class="player black">
+                    <h3>Black</h3>
+                    <div class="piece-counts">
+                        <div class="piece-count">
+                            <span class="piece-icon tile-icon">□</span>
+                            <span class="count" id="black-tiles-available">9</span>
+                        </div>
+                        <div class="piece-count">
+                            <span class="piece-icon disc-icon">●</span>
+                            <span class="count" id="black-discs-available">6</span>
+                            (<span id="black-discs-captured">0</span>)
+                        </div>
+                        <div class="piece-count">
+                            <span class="piece-icon ring-icon">○</span>
+                            <span class="count" id="black-rings-available">3</span>
+                            (<span id="black-rings-captured">0</span>)
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="player white">
+                    <h3>White</h3>
+                    <div class="piece-counts">
+                        <div class="piece-count">
+                            <span class="piece-icon tile-icon">□</span>
+                            <span class="count" id="white-tiles-available">9</span>
+                        </div>
+                        <div class="piece-count">
+                            <span class="piece-icon disc-icon">●</span>
+                            <span class="count" id="white-discs-available">6</span>
+                            (<span id="white-discs-captured">0</span>)
+                        </div>
+                        <div class="piece-count">
+                            <span class="piece-icon ring-icon">○</span>
+                            <span class="count" id="white-rings-available">3</span>
+                            (<span id="white-rings-captured">0</span>)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Button -->
+        <button id="settings-button" aria-label="Settings">⚙️</button>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Settings</h2>
+            <div class="settings-options">
+                <div class="setting">
+                    <label for="show-valid-moves">
+                        <input type="checkbox" id="show-valid-moves" checked>
+                        Show valid moves
+                    </label>
+                </div>
+                <div class="setting">
+                    <label for="dark-mode">
+                        <input type="checkbox" id="dark-mode">
+                        Dark mode
+                    </label>
+                </div>
+                <button id="rules-button">Game Rules</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Hexaequo Rules</h2>
+            <div class="rules-content">
+                <!-- Rules content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module" src="src/js/main.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html> 
