@@ -885,8 +885,8 @@ export class ThreeRenderer {
             const ringModel = this.models[`ring_${color}`].clone();
             
             // Scale down the models
-            const discScale = 0.8; // Reduced from 0.8 to match single piece case
-            const ringScale = 0.5; // Reduced from 0.5 to match single piece case
+            const discScale = 0.8; // Leave this at 0.8
+            const ringScale = 0.5; // Leave this at 0.5
             discModel.scale.set(discScale, discScale, discScale);
             ringModel.scale.set(ringScale, ringScale, ringScale);
             
@@ -944,16 +944,15 @@ export class ThreeRenderer {
             // Show only disc model with validation
             const model = this.models[`disc_${color}`].clone();
             
-            // Scale down the model
-            const scale = 0.3;
+            // Keep full size for single piece
+            const scale = 1.0;
             model.scale.set(scale, scale, scale);
             
-            // Rotate 90 degrees to be on the vertical plane
-            model.rotation.x = Math.PI / 2;
+            // Place on the horizontal plane (no rotation needed as the model is already horizontal)
+            // Position the model floating above the tile
+            model.position.set(position.x, POSITIONS.PIECE_FLOATING_HEIGHT, position.z);
             
-            model.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z);
-            
-            // Add user data for click detection to both the model and its children
+            // Add user data for click detection
             const userData = { 
                 type: 'ui-icon', 
                 pieceType: 'disc', 
@@ -975,27 +974,28 @@ export class ThreeRenderer {
             
             this.uiGroup.add(model);
             
-            this.validateIcon.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z + 0.5);
+            // Position validation icons above the piece
+            this.cancelIcon.position.set(position.x - 0.5, POSITIONS.UI_VALIDATE_ICON_HEIGHT, position.z);
+            this.validateIcon.position.set(position.x + 0.5, POSITIONS.UI_VALIDATE_ICON_HEIGHT, position.z);
             this.validateIcon.visible = true;
             
             // Update selected piece type
             this.gameState.selectedPiece = { type: 'disc', q, r };
             
-            console.log('Added disc model to UI group');
+            console.log('Added disc model to UI group (single piece mode)');
         } else if (canPlaceRing) {
             // Show only ring model with validation
             const model = this.models[`ring_${color}`].clone();
             
-            // Scale down the model
-            const scale = 0.3;
+            // Keep full size for single piece
+            const scale = 1.0;
             model.scale.set(scale, scale, scale);
             
-            // Rotate 90 degrees to be on the vertical plane
-            model.rotation.x = Math.PI / 2;
+            // Place on the horizontal plane (no rotation needed as the model is already horizontal)
+            // Position the model floating above the tile
+            model.position.set(position.x, POSITIONS.PIECE_FLOATING_HEIGHT, position.z);
             
-            model.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z);
-            
-            // Add user data for click detection to both the model and its children
+            // Add user data for click detection
             const userData = { 
                 type: 'ui-icon', 
                 pieceType: 'ring', 
@@ -1017,13 +1017,15 @@ export class ThreeRenderer {
             
             this.uiGroup.add(model);
             
-            this.validateIcon.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z + 0.5);
+            // Position validation icons above the piece
+            this.cancelIcon.position.set(position.x - 0.5, POSITIONS.UI_VALIDATE_ICON_HEIGHT, position.z);
+            this.validateIcon.position.set(position.x + 0.5, POSITIONS.UI_VALIDATE_ICON_HEIGHT, position.z);
             this.validateIcon.visible = true;
             
             // Update selected piece type
             this.gameState.selectedPiece = { type: 'ring', q, r };
             
-            console.log('Added ring model to UI group');
+            console.log('Added ring model to UI group (single piece mode)');
         }
     }
     
