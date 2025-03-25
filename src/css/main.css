@@ -165,11 +165,11 @@ body {
     }
     
     /* Make icons bigger */
-    .piece-icon {
+    /*.piece-icon {
         font-size: 1.8rem;
         width: 1.8rem;
         line-height: 1.3rem;
-    }
+    }*/
     
     /* All icons at same size */
     .tile-icon, .disc-icon, .ring-icon {
