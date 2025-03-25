@@ -1132,6 +1132,26 @@ export class ThreeRenderer {
             toPosition.z
         );
         
+        // Check if there's a piece at the destination that needs to be captured
+        const destPieceMesh = this.piecesMeshes[toKey];
+        if (destPieceMesh) {
+            // Check if this is a ring (which can capture by moving onto a piece)
+            if (pieceMesh.userData.pieceType === 'ring') {
+                // Only remove the piece if it's an opponent's piece
+                const destPieceColor = destPieceMesh.userData.color;
+                const movingPieceColor = pieceMesh.userData.color;
+                
+                console.log(`Ring moving to position with piece: ${destPieceColor} (ring color: ${movingPieceColor})`);
+                
+                // Only remove opponent's pieces, not your own
+                if (destPieceColor !== movingPieceColor) {
+                    console.log(`Ring capturing opponent piece at (${toQ}, ${toR})`);
+                    // Remove the piece from the scene (visual removal)
+                    this.removePiece(toQ, toR);
+                }
+            }
+        }
+        
         // Check if this is a jump move by a disc piece and if there's a piece to be captured
         if (pieceMesh.userData.pieceType === 'disc') {
             // Calculate if this is a jump (distance of 2)
