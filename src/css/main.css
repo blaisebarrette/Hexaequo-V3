@@ -40,7 +40,11 @@ body {
 .game-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100vh; /* Fallback */
+    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(var(--vh, 1vh) * 100); /* Use custom viewport height variable */
+    max-height: -webkit-fill-available; /* For iOS Safari */
+    overflow: hidden;
     position: relative;
 }
 

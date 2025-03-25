@@ -4,8 +4,21 @@ import { UIManager } from './ui/uiManager.js';
 import { ThreeRenderer } from './ui/threeRenderer.js';
 import { StorageManager } from './utils/storageManager.js';
 
+// Set correct viewport height for mobile browsers
+function setMobileViewportHeight() {
+    // First we get the viewport height and multiply it by 1% to get a value for a vh unit
+    let vh = window.innerHeight * 0.01;
+    // Then we set the value in the --vh custom property to the root of the document
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
+
 // Initialize game components
 document.addEventListener('DOMContentLoaded', () => {
+    // Fix mobile viewport height issues
+    setMobileViewportHeight();
+    window.addEventListener('resize', setMobileViewportHeight);
+    window.addEventListener('orientationchange', setMobileViewportHeight);
+    
     // Initialize game state
     const gameState = new GameState();
     
