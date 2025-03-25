@@ -114,7 +114,7 @@ body {
     display: inline-block;
     width: 1.5rem;
     text-align: center;
-    font-size: 1.5rem;
+    font-size: 2rem;
     position: relative;
     top: -0.15rem;
     color: var(--primary-color);
@@ -164,18 +164,6 @@ body {
         color: var(--black-piece-color);
     }
     
-    /* Make icons bigger */
-    /*.piece-icon {
-        font-size: 1.8rem;
-        width: 1.8rem;
-        line-height: 1.3rem;
-    }*/
-    
-    /* All icons at same size */
-    .tile-icon, .disc-icon, .ring-icon {
-        font-size: 1.8rem;
-    }
-    
     .player h3 {
         margin: 0;
         width: 40px;
@@ -197,7 +185,6 @@ body {
         display: flex;
         align-items: center;
         gap: 0.2rem;
-        font-size: 0.75rem;
         white-space: nowrap;
     }
     
@@ -307,10 +294,6 @@ body {
 
 .disc-icon {
     font-size: 1.5rem;
-}
-
-.ring-icon {
-    font-size: 2rem;
 }
 
 /* New Game Button */
