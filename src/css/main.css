@@ -187,11 +187,13 @@ body {
         gap: 0.2rem;
         white-space: nowrap;
     }
+
+    .ring-icon {
+        font-size: 1.5rem;
+    }
     
     #new-game-button {
-        margin-top: 0.3rem;
-        padding: 0.35rem;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
 }
 
