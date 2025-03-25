@@ -6,11 +6,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const POSITIONS = {
     // Tile positions
     TILE_RESTING_HEIGHT: 0,
-    TILE_FLOATING_HEIGHT: 1,
+    TILE_FLOATING_HEIGHT: 0.625,
     
     // Piece positions
     PIECE_RESTING_HEIGHT: 0,
-    PIECE_FLOATING_HEIGHT: 0.5,
+    PIECE_FLOATING_HEIGHT: 0.625,
     
     // UI element positions
     UI_ICON_HEIGHT: 1.5,
@@ -373,15 +373,15 @@ export class ThreeRenderer {
         // Add a much larger ground plane to appear infinite
         const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x444444,
+            color: 0xdddddd, // Lighter color for light mode
             roughness: 0.9,
             metalness: 0.1
         });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2; // Rotate to horizontal
-        ground.position.y = -0.1; // Slightly below the tiles
-        ground.receiveShadow = true;
-        this.scene.add(ground);
+        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        this.ground.rotation.x = -Math.PI / 2; // Rotate to horizontal
+        this.ground.position.y = -0.1; // Slightly below the tiles
+        this.ground.receiveShadow = true;
+        this.scene.add(this.ground);
         
         // Update the board based on the game state
         this.updateBoard();
@@ -1532,8 +1532,14 @@ export class ThreeRenderer {
         // Use a darker color for dark mode, lighter for light mode
         if (isDarkMode) {
             this.scene.background = new THREE.Color(0x222222); // Dark gray for dark mode
+            if (this.ground) {
+                this.ground.material.color.setHex(0x444444); // Darker ground for dark mode
+            }
         } else {
             this.scene.background = new THREE.Color(0xf0f0f0); // Light gray for light mode
+            if (this.ground) {
+                this.ground.material.color.setHex(0xcccccc); // Lighter ground for light mode
+            }
         }
     }
     
