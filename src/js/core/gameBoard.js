@@ -34,7 +34,7 @@ export class GameBoard {
      * Handle click events on the game board
      * @param {Event} event - The click event
      */
-    onClick(event) {
+    async onClick(event) {
         // Get mouse position relative to the canvas
         const rect = this.renderer.domElement.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -51,35 +51,101 @@ export class GameBoard {
             console.log('Validate button clicked');
             
             if (this.gameState.currentAction === 'place_tile') {
-                // Get the current floating tile coordinates from userData
-                const tempTile = this.renderer.uiGroup.children.find(
-                    child => child.userData && child.userData.type === 'temp-tile'
-                );
+                // For tile placement confirmation
+                console.log('Validating tile placement');
                 
-                if (tempTile) {
+                // Find the selected hex coordinates from temp tile model
+                const tempTile = this.renderer.tempTileModel;
+                if (tempTile && tempTile.userData) {
                     this.finalizeTilePlacement(tempTile.userData.q, tempTile.userData.r);
                 }
                 return;
-            } else if (this.gameState.currentAction === 'place_piece' && this.gameState.selectedPiece) {
-                // For piece placement, we need the coordinates and the selected piece type
-                const tempPiece = this.renderer.uiGroup.children.find(
-                    child => child.userData && child.userData.type === 'temp-piece'
-                );
+            } else if (this.gameState.currentAction === 'place_piece') {
+                // For piece placement confirmation
+                console.log('Validating piece placement');
                 
-                if (tempPiece) {
-                    this.finalizePiecePlacement(
-                        tempPiece.userData.q, 
-                        tempPiece.userData.r, 
-                        this.gameState.selectedPiece.type
-                    );
+                // Check if we have a selected piece type
+                if (this.gameState.selectedPiece && this.gameState.selectedPiece.type) {
+                    const selectedPiece = this.gameState.selectedPiece;
+                    console.log('Selected piece for validation:', selectedPiece);
+                    
+                    if (selectedPiece.q !== undefined && selectedPiece.r !== undefined) {
+                        this.finalizePiecePlacement(
+                            selectedPiece.q,
+                            selectedPiece.r,
+                            selectedPiece.type
+                        );
+                    } else {
+                        console.warn('Selected piece does not have valid coordinates', selectedPiece);
+                        
+                        // Try to get coordinates from the tempPieceModel
+                        if (this.renderer.tempPieceModel && this.renderer.tempPieceModel.userData) {
+                            const userData = this.renderer.tempPieceModel.userData;
+                            console.log('Found piece data from tempPieceModel:', userData);
+                            
+                            if (userData.q !== undefined && userData.r !== undefined && userData.pieceType) {
+                                this.finalizePiecePlacement(
+                                    userData.q,
+                                    userData.r,
+                                    userData.pieceType
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    console.warn('No piece type selected for validation');
+                    
+                    // Try to get info from tempPieceModel as a fallback
+                    if (this.renderer.tempPieceModel && this.renderer.tempPieceModel.userData) {
+                        const userData = this.renderer.tempPieceModel.userData;
+                        console.log('Found piece data from tempPieceModel:', userData);
+                        
+                        if (userData.q !== undefined && userData.r !== undefined && userData.pieceType) {
+                            this.finalizePiecePlacement(
+                                userData.q,
+                                userData.r,
+                                userData.pieceType
+                            );
+                        }
+                    } else {
+                        // Check for temp-piece reference in UI group
+                        const tempPiece = this.renderer.uiGroup.children.find(
+                            child => child.userData && child.userData.type === 'temp-piece'
+                        );
+                        
+                        if (tempPiece && tempPiece.userData) {
+                            console.log('Found temp-piece reference:', tempPiece.userData);
+                            
+                            // If we have temp-piece but no type, use 'disc' as default when only disc is available
+                            const currentPlayer = this.gameState.currentPlayer;
+                            const canPlaceDisc = this.gameState.pieces[currentPlayer].discsAvailable > 0;
+                            const canPlaceRing = this.gameState.pieces[currentPlayer].ringsAvailable > 0 &&
+                                               this.gameState.pieces[currentPlayer].discsCaptured > 0;
+                            
+                            if (canPlaceDisc && !canPlaceRing) {
+                                this.finalizePiecePlacement(
+                                    tempPiece.userData.q,
+                                    tempPiece.userData.r,
+                                    'disc'
+                                );
+                            } else if (!canPlaceDisc && canPlaceRing) {
+                                this.finalizePiecePlacement(
+                                    tempPiece.userData.q,
+                                    tempPiece.userData.r,
+                                    'ring'
+                                );
+                            }
+                        }
+                    }
                 }
+                
                 return;
             } else if (this.gameState.currentAction === 'move_piece') {
                 // For piece movement confirmation
                 console.log('Validating piece movement');
                 
                 // First clear UI elements to drop the piece back to its resting position
-                this.renderer.clearActionUI();
+                this.renderer.clearActionUI(true);
                 
                 // Update the board to show the piece in its final position
                 this.renderer.updateBoard();
@@ -93,25 +159,52 @@ export class GameBoard {
             if (this.gameState.currentAction === 'place_piece') {
                 console.log('Current action is place_piece - looking for coordinates');
                 
+                // Get the clicked disc model for animation
+                const discModel = this.renderer.isDiscClicked(x, y);
+                
                 // Find the coordinates from the temporary piece
                 const tempPiece = this.renderer.uiGroup.children.find(
                     child => child.userData && child.userData.type === 'temp-piece'
                 );
                 
-                if (tempPiece) {
+                if (tempPiece && discModel && discModel !== true) {
                     console.log(`Found temp piece at (${tempPiece.userData.q}, ${tempPiece.userData.r})`);
-                    this.finalizePiecePlacement(tempPiece.userData.q, tempPiece.userData.r, 'disc');
+                    const position = this.renderer.hexToWorld(tempPiece.userData.q, tempPiece.userData.r);
+                    
+                    // First animate the piece selection
+                    this.renderer.animatePieceSelection(discModel, position, 'disc')
+                        .then(() => {
+                            // Then hide the other piece option
+                            const ringModel = this.renderer.uiGroup.children.find(
+                                child => child.userData && 
+                                        child.userData.type === 'ui-icon' && 
+                                        child.userData.pieceType === 'ring'
+                            );
+                            
+                            if (ringModel) {
+                                ringModel.visible = false;
+                            }
+                            
+                            // Show the validation UI
+                            this.renderer.showValidationUI(tempPiece.userData.q, tempPiece.userData.r);
+                            
+                            // Update selected piece type
+                            this.gameState.selectedPiece = { 
+                                type: 'disc', 
+                                q: tempPiece.userData.q, 
+                                r: tempPiece.userData.r,
+                                color: tempPiece.userData.color
+                            };
+                        });
                     return;
                 } else {
-                    console.log('No temp piece found, checking selectedPiece');
+                    console.log('No temp piece or disc model found, checking selectedPiece');
                     // If there's no temp piece yet, get coords from the selected tile
                     const selectedTile = this.gameState.selectedPiece;
                     if (selectedTile && selectedTile.q !== undefined && selectedTile.r !== undefined) {
                         console.log(`Found selectedPiece at (${selectedTile.q}, ${selectedTile.r})`);
                         this.finalizePiecePlacement(selectedTile.q, selectedTile.r, 'disc');
                         return;
-                    } else {
-                        console.log('No selectedPiece with valid coordinates found', selectedTile);
                     }
                 }
                 
@@ -124,8 +217,6 @@ export class GameBoard {
                 if (pieceUI) {
                     console.log(`Found UI element with coordinates at (${pieceUI.userData.q}, ${pieceUI.userData.r})`);
                     this.finalizePiecePlacement(pieceUI.userData.q, pieceUI.userData.r, 'disc');
-                } else {
-                    console.log('No UI element with coordinates found');
                 }
                 return;
             }
@@ -134,25 +225,52 @@ export class GameBoard {
             if (this.gameState.currentAction === 'place_piece') {
                 console.log('Current action is place_piece - looking for coordinates');
                 
+                // Get the clicked ring model for animation
+                const ringModel = this.renderer.isRingClicked(x, y);
+                
                 // Find the coordinates from the temporary piece
                 const tempPiece = this.renderer.uiGroup.children.find(
                     child => child.userData && child.userData.type === 'temp-piece'
                 );
                 
-                if (tempPiece) {
+                if (tempPiece && ringModel && ringModel !== true) {
                     console.log(`Found temp piece at (${tempPiece.userData.q}, ${tempPiece.userData.r})`);
-                    this.finalizePiecePlacement(tempPiece.userData.q, tempPiece.userData.r, 'ring');
+                    const position = this.renderer.hexToWorld(tempPiece.userData.q, tempPiece.userData.r);
+                    
+                    // First animate the piece selection
+                    this.renderer.animatePieceSelection(ringModel, position, 'ring')
+                        .then(() => {
+                            // Then hide the other piece option
+                            const discModel = this.renderer.uiGroup.children.find(
+                                child => child.userData && 
+                                        child.userData.type === 'ui-icon' && 
+                                        child.userData.pieceType === 'disc'
+                            );
+                            
+                            if (discModel) {
+                                discModel.visible = false;
+                            }
+                            
+                            // Show the validation UI
+                            this.renderer.showValidationUI(tempPiece.userData.q, tempPiece.userData.r);
+                            
+                            // Update selected piece type
+                            this.gameState.selectedPiece = { 
+                                type: 'ring', 
+                                q: tempPiece.userData.q, 
+                                r: tempPiece.userData.r,
+                                color: tempPiece.userData.color
+                            };
+                        });
                     return;
                 } else {
-                    console.log('No temp piece found, checking selectedPiece');
+                    console.log('No temp piece or ring model found, checking selectedPiece');
                     // If there's no temp piece yet, get coords from the selected tile
                     const selectedTile = this.gameState.selectedPiece;
                     if (selectedTile && selectedTile.q !== undefined && selectedTile.r !== undefined) {
                         console.log(`Found selectedPiece at (${selectedTile.q}, ${selectedTile.r})`);
                         this.finalizePiecePlacement(selectedTile.q, selectedTile.r, 'ring');
                         return;
-                    } else {
-                        console.log('No selectedPiece with valid coordinates found', selectedTile);
                     }
                 }
                 
@@ -165,8 +283,6 @@ export class GameBoard {
                 if (pieceUI) {
                     console.log(`Found UI element with coordinates at (${pieceUI.userData.q}, ${pieceUI.userData.r})`);
                     this.finalizePiecePlacement(pieceUI.userData.q, pieceUI.userData.r, 'ring');
-                } else {
-                    console.log('No UI element with coordinates found');
                 }
                 return;
             }
@@ -252,7 +368,18 @@ export class GameBoard {
                     const sourceTile = this.gameState.board.tiles[fromKey];
                     const pieceColor = sourceTile && sourceTile.piece ? sourceTile.piece.color : this.gameState.currentPlayer;
                     
-                    // Move the piece directly since we know this is a valid move
+                    // Clear valid move indicators first
+                    this.renderer.clearValidMoveIndicators();
+                    
+                    // Animate the piece movement
+                    await this.renderer.animatePieceMovement(
+                        selectedPiece.q,
+                        selectedPiece.r,
+                        hex.q,
+                        hex.r
+                    );
+                    
+                    // Then update the game state with the move
                     const success = this.gameState.movePiece(
                         selectedPiece.q,
                         selectedPiece.r,
@@ -266,9 +393,6 @@ export class GameBoard {
                         const tileKey = `${hex.q},${hex.r}`;
                         const pieceAfterMove = this.gameState.board.tiles[tileKey].piece;
                         console.log('Piece after move:', pieceAfterMove);
-                        
-                        // Explicitly update the board visually
-                        this.renderer.updateBoard();
                         
                         // If it's a disc that has moved, check for further jumps
                         if (selectedPiece.type === 'disc') {
@@ -330,7 +454,18 @@ export class GameBoard {
                         const sourceTile = this.gameState.board.tiles[fromKey];
                         const pieceColor = sourceTile && sourceTile.piece ? sourceTile.piece.color : this.gameState.currentPlayer;
                         
-                        // Move the piece
+                        // Clear valid move indicators first
+                        this.renderer.clearValidMoveIndicators();
+                        
+                        // Animate the piece movement
+                        await this.renderer.animatePieceMovement(
+                            selectedPiece.q,
+                            selectedPiece.r,
+                            hex.q,
+                            hex.r
+                        );
+                        
+                        // Then update the game state with the move
                         const success = this.gameState.movePiece(
                             selectedPiece.q, 
                             selectedPiece.r, 
@@ -344,9 +479,6 @@ export class GameBoard {
                             const tileKey = `${hex.q},${hex.r}`;
                             const pieceAfterMove = this.gameState.board.tiles[tileKey].piece;
                             console.log('Piece after move:', pieceAfterMove);
-                            
-                            // Explicitly update the board visually
-                            this.renderer.updateBoard();
                             
                             // If it's a disc that has moved, check for further jumps
                             if (selectedPiece.type === 'disc') {
@@ -399,41 +531,41 @@ export class GameBoard {
     }
     
     /**
-     * Start a new action based on the hex that was clicked
+     * Start a new action at the specified coordinates
      * @param {number} q - Hex q coordinate
      * @param {number} r - Hex r coordinate
      */
-    startAction(q, r) {
+    async startAction(q, r) {
         const key = `${q},${r}`;
         const currentPlayer = this.gameState.currentPlayer;
         const tile = this.gameState.board.tiles[key];
         
-        console.log(`startAction at (${q}, ${r})`);
-        console.log(`tile: ${JSON.stringify(tile)}`);
-        
-        // Case 1: Click on a valid tile placement location
-        const validTilePlacements = this.gameState.getValidTilePlacements(currentPlayer);
-        const isTilePlacement = validTilePlacements.some(pos => pos.q === q && pos.r === r);
-        
-        if (isTilePlacement && this.gameState.pieces[currentPlayer].tilesAvailable > 0) {
-            console.log('Case 1: Valid tile placement');
-            // Show the tile placement UI
-            this.gameState.currentAction = 'place_tile';
-            this.renderer.showTilePlacementUI(q, r, currentPlayer);
-            return;
+        // Case 1: Click on a valid tile placement
+        if (this.gameState.pieces[currentPlayer].tilesAvailable > 0) {
+            const validTilePlacements = this.gameState.getValidTilePlacements(currentPlayer);
+            const isValidPlacement = validTilePlacements.some(placement => 
+                placement.q === q && placement.r === r
+            );
+            
+            if (isValidPlacement) {
+                console.log('Case 1: Valid tile placement');
+                this.gameState.currentAction = 'place_tile';
+                this.gameState.selectedTile = { q, r };
+                this.renderer.showTilePlacementUI(q, r, currentPlayer);
+                return;
+            }
         }
         
-        // Case 2: Click on an empty tile of the player's color to place a piece
+        // Case 2: Click on a valid piece placement
         if (tile && tile.color === currentPlayer && !tile.piece) {
             const canPlaceDisc = this.gameState.pieces[currentPlayer].discsAvailable > 0;
             const canPlaceRing = this.gameState.pieces[currentPlayer].ringsAvailable > 0 &&
                                 this.gameState.pieces[currentPlayer].discsCaptured > 0;
             
-            console.log(`Case 2: Piece placement - canPlaceDisc: ${canPlaceDisc}, canPlaceRing: ${canPlaceRing}`);
-            
             if (canPlaceDisc || canPlaceRing) {
-                // Show the piece placement UI
+                console.log('Case 2: Valid piece placement');
                 this.gameState.currentAction = 'place_piece';
+                this.gameState.selectedPiece = { q, r };
                 this.renderer.showPiecePlacementUI(q, r, currentPlayer, canPlaceDisc, canPlaceRing);
                 return;
             }
@@ -454,7 +586,7 @@ export class GameBoard {
                 this.gameState.saveGameState();
                 
                 this.gameState.selectedPiece = { q, r, type: tile.piece.type };
-                this.renderer.showPieceMovementUI(q, r, validMoves);
+                await this.renderer.showPieceMovementUI(q, r, validMoves);
                 return;
             } else {
                 console.log('No valid moves for this piece');
@@ -490,8 +622,8 @@ export class GameBoard {
             this.gameState.selectedPiece = null;
         }
         
-        // Clear UI elements
-        this.renderer.clearActionUI();
+        // Clear UI elements with animation for dropping piece
+        this.renderer.clearActionUI(true);
         
         // Explicitly update the visual board to match the game state
         this.renderer.updateBoard();
@@ -505,7 +637,7 @@ export class GameBoard {
      * @param {number} q - Hex q coordinate
      * @param {number} r - Hex r coordinate
      */
-    finalizeTilePlacement(q, r) {
+    async finalizeTilePlacement(q, r) {
         const currentPlayer = this.gameState.currentPlayer;
         
         // Log for debugging purposes
@@ -518,10 +650,12 @@ export class GameBoard {
             
             // Clear UI elements first
             this.gameState.currentAction = null;
-            this.renderer.clearActionUI();
             
-            // Explicitly update the board with the new tile
-            this.renderer.updateBoard();
+            // Animate the tile placement
+            await this.renderer.animateTilePlacement(q, r, currentPlayer);
+            
+            // Clear remaining UI elements
+            this.renderer.clearActionUI();
             
             // End the turn
             this.gameState.endTurn();
@@ -539,7 +673,7 @@ export class GameBoard {
      * @param {number} r - Hex r coordinate
      * @param {string} pieceType - 'disc' or 'ring'
      */
-    finalizePiecePlacement(q, r, pieceType) {
+    async finalizePiecePlacement(q, r, pieceType) {
         const currentPlayer = this.gameState.currentPlayer;
         
         // Log for debugging purposes
@@ -552,10 +686,12 @@ export class GameBoard {
             
             // Clear UI elements first
             this.gameState.currentAction = null;
-            this.renderer.clearActionUI();
             
-            // Explicitly update the board with the new piece
-            this.renderer.updateBoard();
+            // Animate the piece placement
+            await this.renderer.animatePiecePlacement(q, r, currentPlayer, pieceType);
+            
+            // Clear remaining UI elements
+            this.renderer.clearActionUI();
             
             // End the turn
             this.gameState.endTurn();

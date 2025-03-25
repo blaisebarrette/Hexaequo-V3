@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { ThreeAnimationHandler, ANIMATION_CONFIG } from './threeAnimationHandler.js';
 
 // Constants for positioning
 const POSITIONS = {
@@ -73,6 +74,9 @@ export class ThreeRenderer {
         this.camera = null;
         this.renderer = null;
         this.controls = null;
+        
+        // Animation handler
+        this.animationHandler = new ThreeAnimationHandler();
         
         // Loaded models
         this.models = {
@@ -773,7 +777,7 @@ export class ThreeRenderer {
      * Check if the disc icon was clicked
      * @param {number} x - Screen x coordinate
      * @param {number} y - Screen y coordinate
-     * @returns {boolean} - True if the disc icon was clicked
+     * @returns {Object|boolean} - The clicked object or false if no disc icon was clicked
      */
     isDiscClicked(x, y) {
         this.mouse.x = (x / this.renderer.domElement.clientWidth) * 2 - 1;
@@ -797,7 +801,16 @@ export class ThreeRenderer {
                 if (object.userData.type === 'ui-icon' && 
                     object.userData.pieceType === 'disc') {
                     console.log('Disc icon clicked');
-                    return true;
+                    
+                    // Find the actual disc model in the uiGroup
+                    const discModel = this.uiGroup.children.find(
+                        child => child.userData && 
+                                child.userData.type === 'ui-icon' && 
+                                child.userData.pieceType === 'disc'
+                    );
+                    
+                    // Return the model to allow for animation
+                    return discModel || true;
                 }
             }
         }
@@ -809,7 +822,7 @@ export class ThreeRenderer {
      * Check if the ring icon was clicked
      * @param {number} x - Screen x coordinate
      * @param {number} y - Screen y coordinate
-     * @returns {boolean} - True if the ring icon was clicked
+     * @returns {Object|boolean} - The clicked object or false if no ring icon was clicked
      */
     isRingClicked(x, y) {
         this.mouse.x = (x / this.renderer.domElement.clientWidth) * 2 - 1;
@@ -833,7 +846,16 @@ export class ThreeRenderer {
                 if (object.userData.type === 'ui-icon' && 
                     object.userData.pieceType === 'ring') {
                     console.log('Ring icon clicked');
-                    return true;
+                    
+                    // Find the actual ring model in the uiGroup
+                    const ringModel = this.uiGroup.children.find(
+                        child => child.userData && 
+                                child.userData.type === 'ui-icon' && 
+                                child.userData.pieceType === 'ring'
+                    );
+                    
+                    // Return the model to allow for animation
+                    return ringModel || true;
                 }
             }
         }
@@ -841,6 +863,53 @@ export class ThreeRenderer {
         return false;
     }
     
+    /**
+     * Animate a piece dropping from floating height to resting position after move validation
+     * @param {number} q - Hex q coordinate
+     * @param {number} r - Hex r coordinate
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animatePieceDropAfterMove(q, r) {
+        const key = `${q},${r}`;
+        const pieceMesh = this.piecesMeshes[key];
+        
+        if (!pieceMesh) {
+            console.warn('No piece found to animate dropping');
+            return Promise.resolve();
+        }
+        
+        // Only animate if the piece is floating
+        if (pieceMesh.position.y !== POSITIONS.PIECE_FLOATING_HEIGHT) {
+            return Promise.resolve();
+        }
+        
+        console.log(`Animating piece dropping at (${q}, ${r})`);
+        
+        const startPos = pieceMesh.position.clone();
+        const endPos = new THREE.Vector3(
+            pieceMesh.position.x,
+            POSITIONS.PIECE_RESTING_HEIGHT,
+            pieceMesh.position.z
+        );
+        
+        // Animate the piece dropping with a bounce effect
+        await this.animationHandler.animatePosition(
+            pieceMesh,
+            startPos,
+            endPos,
+            {
+                easing: ANIMATION_CONFIG.EASING.BOUNCE,
+                duration: ANIMATION_CONFIG.DURATION * 1.2, // Slightly slower for better bounce effect
+                onComplete: () => {
+                    // Ensure piece is exactly at resting height after animation
+                    pieceMesh.position.y = POSITIONS.PIECE_RESTING_HEIGHT;
+                }
+            }
+        );
+        
+        return true;
+    }
+
     /**
      * Show validation UI at the specified position
      * @param {number} q - Hex q coordinate
@@ -886,7 +955,7 @@ export class ThreeRenderer {
         // Get the mesh after possibly creating it
         const pieceMesh = this.piecesMeshes[key];
         
-        // If there's a piece at this position, lift it above the board
+        // If there's a piece at this position, ensure it's at the floating height
         if (pieceMesh) {
             pieceMesh.position.y = POSITIONS.PIECE_FLOATING_HEIGHT;
         }
@@ -912,6 +981,14 @@ export class ThreeRenderer {
     showTilePlacementUI(q, r, color) {
         const position = this.hexToWorld(q, r);
         
+        // Remove the valid move placeholder at this position
+        for (let i = this.validMovesGroup.children.length - 1; i >= 0; i--) {
+            const child = this.validMovesGroup.children[i];
+            if (child.userData && child.userData.q === q && child.userData.r === r) {
+                this.validMovesGroup.remove(child);
+            }
+        }
+        
         // Create a temporary floating tile
         const model = this.models[`tile_${color}`].clone();
         model.position.set(position.x, POSITIONS.TILE_FLOATING_HEIGHT, position.z); // Float above the board
@@ -922,12 +999,195 @@ export class ThreeRenderer {
         model.userData = { type: 'temp-tile', q, r, color };
         this.uiGroup.add(model);
         
+        // Store the temporary tile model for animation
+        this.tempTileModel = model;
+        
         // Position the cancel and validate icons above the tile
         this.cancelIcon.position.set(position.x - 0.5, POSITIONS.UI_VALIDATE_ICON_HEIGHT, position.z);
         this.validateIcon.position.set(position.x + 0.5, POSITIONS.UI_VALIDATE_ICON_HEIGHT, position.z);
         
         this.cancelIcon.visible = true;
         this.validateIcon.visible = true;
+    }
+    
+    /**
+     * Animate tile placement
+     * @param {number} q - Hex q coordinate
+     * @param {number} r - Hex r coordinate
+     * @param {string} color - 'black' or 'white'
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animateTilePlacement(q, r, color) {
+        if (!this.tempTileModel) return Promise.resolve();
+
+        const position = this.hexToWorld(q, r);
+        const startPos = this.tempTileModel.position.clone();
+        const endPos = new THREE.Vector3(position.x, POSITIONS.TILE_RESTING_HEIGHT, position.z);
+
+        // Animate the tile dropping with a bounce effect
+        await this.animationHandler.animatePosition(
+            this.tempTileModel,
+            startPos,
+            endPos,
+            {
+                easing: ANIMATION_CONFIG.EASING.BOUNCE,
+                duration: ANIMATION_CONFIG.DURATION * 1.2, // Slightly slower for better bounce effect
+                onComplete: () => {
+                    // Ensure tile is exactly at resting height after animation
+                    this.tempTileModel.position.y = POSITIONS.TILE_RESTING_HEIGHT;
+                }
+            }
+        );
+
+        // Remove the temporary model from UI group
+        this.uiGroup.remove(this.tempTileModel);
+        this.tempTileModel = null;
+
+        // Add the permanent tile
+        this.addTile(q, r, color);
+    }
+    
+    /**
+     * Animate piece placement
+     * @param {number} q - Hex q coordinate
+     * @param {number} r - Hex r coordinate
+     * @param {string} color - 'black' or 'white'
+     * @param {string} pieceType - 'disc' or 'ring'
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animatePiecePlacement(q, r, color, pieceType) {
+        const position = this.hexToWorld(q, r);
+        
+        // Find the existing floating piece in the UI group
+        const floatingPiece = this.uiGroup.children.find(
+            child => child.userData && 
+                    child.userData.type === 'ui-icon' && 
+                    child.userData.pieceType === pieceType
+        );
+        
+        if (!floatingPiece) {
+            console.warn('No floating piece found to animate');
+            return Promise.resolve();
+        }
+        
+        const startPos = floatingPiece.position.clone();
+        const endPos = new THREE.Vector3(position.x, POSITIONS.PIECE_RESTING_HEIGHT, position.z);
+        
+        // Animate the piece dropping with a bounce effect
+        await this.animationHandler.animatePosition(
+            floatingPiece,
+            startPos,
+            endPos,
+            {
+                easing: ANIMATION_CONFIG.EASING.BOUNCE,
+                duration: ANIMATION_CONFIG.DURATION * 1.2, // Slightly slower for better bounce effect
+                onComplete: () => {
+                    // Ensure piece is exactly at resting height after animation
+                    floatingPiece.position.y = POSITIONS.PIECE_RESTING_HEIGHT;
+                }
+            }
+        );
+        
+        // Remove the temporary model from UI group
+        this.uiGroup.remove(floatingPiece);
+        
+        // Add the permanent piece
+        this.addPiece(q, r, color, pieceType);
+    }
+    
+    /**
+     * Animate a piece moving from one position to another
+     * @param {number} fromQ - Starting hex q coordinate
+     * @param {number} fromR - Starting hex r coordinate
+     * @param {number} toQ - Destination hex q coordinate
+     * @param {number} toR - Destination hex r coordinate
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animatePieceMovement(fromQ, fromR, toQ, toR) {
+        const fromKey = `${fromQ},${fromR}`;
+        const toKey = `${toQ},${toR}`;
+        const fromPosition = this.hexToWorld(fromQ, fromR);
+        const toPosition = this.hexToWorld(toQ, toR);
+        
+        // Get the piece mesh that's currently at the source position
+        const pieceMesh = this.piecesMeshes[fromKey];
+        
+        if (!pieceMesh) {
+            console.warn(`No piece found at (${fromQ}, ${fromR}) to animate`);
+            return Promise.resolve();
+        }
+        
+        console.log(`Animating piece movement from (${fromQ}, ${fromR}) to (${toQ}, ${toR})`);
+        
+        // Create start and end positions at the floating height
+        const startPos = new THREE.Vector3(
+            fromPosition.x, 
+            POSITIONS.PIECE_FLOATING_HEIGHT,
+            fromPosition.z
+        );
+        
+        const endPos = new THREE.Vector3(
+            toPosition.x, 
+            POSITIONS.PIECE_FLOATING_HEIGHT,
+            toPosition.z
+        );
+        
+        // Check if this is a jump move by a disc piece and if there's a piece to be captured
+        if (pieceMesh.userData.pieceType === 'disc') {
+            // Calculate if this is a jump (distance of 2)
+            const distance = Math.max(
+                Math.abs(toQ - fromQ), 
+                Math.abs(toR - fromR), 
+                Math.abs((toQ - fromQ) + (toR - fromR))
+            );
+            
+            if (distance === 2) {
+                // Calculate the coordinates of the jumped-over piece
+                const jumpedQ = (fromQ + toQ) / 2;
+                const jumpedR = (fromR + toR) / 2;
+                const jumpedKey = `${jumpedQ},${jumpedR}`;
+                
+                // Check if there's a piece at the jumped position
+                const jumpedPieceMesh = this.piecesMeshes[jumpedKey];
+                if (jumpedPieceMesh) {
+                    // Only remove the piece if it's an opponent's piece
+                    const jumpedPieceColor = jumpedPieceMesh.userData.color;
+                    const movingPieceColor = pieceMesh.userData.color;
+                    
+                    console.log(`Found piece at jumped position: ${jumpedPieceColor} (moving piece: ${movingPieceColor})`);
+                    
+                    // Only visually remove opponent's pieces, not your own
+                    if (jumpedPieceColor !== movingPieceColor) {
+                        console.log(`Removing captured opponent piece at (${jumpedQ}, ${jumpedR})`);
+                        // Remove the piece from the scene (visual removal)
+                        this.removePiece(jumpedQ, jumpedR);
+                    } else {
+                        console.log(`Not removing own piece at (${jumpedQ}, ${jumpedR})`);
+                    }
+                }
+            }
+        }
+        
+        // Temporarily move the piece mesh to the new key in our tracking
+        delete this.piecesMeshes[fromKey];
+        this.piecesMeshes[toKey] = pieceMesh;
+        
+        // Update the piece's userData
+        pieceMesh.userData.q = toQ;
+        pieceMesh.userData.r = toR;
+        
+        // Animate the piece moving with an arc path
+        await this.animationHandler.animatePosition(
+            pieceMesh,
+            startPos,
+            endPos,
+            {
+                easing: ANIMATION_CONFIG.EASING.EASE_OUT,
+                duration: ANIMATION_CONFIG.DURATION
+            }
+        );
+        
+        return true;
     }
     
     /**
@@ -942,6 +1202,17 @@ export class ThreeRenderer {
         const position = this.hexToWorld(q, r);
         
         console.log(`Showing piece placement UI at (${q}, ${r})`);
+        
+        // Clear any previous temporary piece model
+        this.tempPieceModel = null;
+        
+        // Remove the valid move placeholder at this position
+        for (let i = this.validMovesGroup.children.length - 1; i >= 0; i--) {
+            const child = this.validMovesGroup.children[i];
+            if (child.userData && child.userData.q === q && child.userData.r === r) {
+                this.validMovesGroup.remove(child);
+            }
+        }
         
         this.cancelIcon.position.set(position.x, POSITIONS.UI_ICON_HEIGHT, position.z - 0.5);
         this.cancelIcon.visible = true;
@@ -1013,6 +1284,9 @@ export class ThreeRenderer {
             this.validateIcon.visible = false;
             
             console.log('Added both disc and ring models to UI group');
+            
+            // Store a reference to the model for later validation
+            this.tempPieceModel = discModel;
         } else if (canPlaceDisc) {
             // Show only disc model with validation
             const model = this.models[`disc_${color}`].clone();
@@ -1053,9 +1327,12 @@ export class ThreeRenderer {
             this.validateIcon.visible = true;
             
             // Update selected piece type
-            this.gameState.selectedPiece = { type: 'disc', q, r };
+            this.gameState.selectedPiece = { type: 'disc', q, r, color };
             
             console.log('Added disc model to UI group (single piece mode)');
+            
+            // Store a reference to the model for later validation
+            this.tempPieceModel = model;
         } else if (canPlaceRing) {
             // Show only ring model with validation
             const model = this.models[`ring_${color}`].clone();
@@ -1096,9 +1373,12 @@ export class ThreeRenderer {
             this.validateIcon.visible = true;
             
             // Update selected piece type
-            this.gameState.selectedPiece = { type: 'ring', q, r };
+            this.gameState.selectedPiece = { type: 'ring', q, r, color };
             
             console.log('Added ring model to UI group (single piece mode)');
+            
+            // Store a reference to the model for later validation
+            this.tempPieceModel = model;
         }
     }
     
@@ -1252,12 +1532,42 @@ export class ThreeRenderer {
     }
     
     /**
+     * Animate a piece lifting up when selected for movement
+     * @param {number} q - Hex q coordinate
+     * @param {number} r - Hex r coordinate
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animatePieceLift(q, r) {
+        const key = `${q},${r}`;
+        const pieceMesh = this.piecesMeshes[key];
+        
+        if (!pieceMesh) {
+            console.warn('No piece found to animate');
+            return Promise.resolve();
+        }
+        
+        const startPos = pieceMesh.position.clone();
+        const endPos = new THREE.Vector3(pieceMesh.position.x, POSITIONS.PIECE_FLOATING_HEIGHT, pieceMesh.position.z);
+        
+        // Animate the piece lifting with a simple ease-out effect
+        await this.animationHandler.animatePosition(
+            pieceMesh,
+            startPos,
+            endPos,
+            {
+                easing: ANIMATION_CONFIG.EASING.EASE_OUT,
+                duration: ANIMATION_CONFIG.DURATION
+            }
+        );
+    }
+
+    /**
      * Show UI for piece movement
      * @param {number} q - Hex q coordinate
      * @param {number} r - Hex r coordinate
      * @param {Array} validMoves - Array of valid move coordinates {q, r}
      */
-    showPieceMovementUI(q, r, validMoves) {
+    async showPieceMovementUI(q, r, validMoves) {
         const position = this.hexToWorld(q, r);
         const key = `${q},${r}`;
         
@@ -1301,13 +1611,8 @@ export class ThreeRenderer {
             }
         }
         
-        // Now lift the piece (after getting or creating it)
-        const updatedPieceMesh = this.piecesMeshes[key];
-        if (updatedPieceMesh) {
-            updatedPieceMesh.position.y = POSITIONS.PIECE_FLOATING_HEIGHT;
-        } else {
-            console.error(`Failed to get or create piece mesh at (${q}, ${r})`);
-        }
+        // Animate the piece lifting up
+        await this.animatePieceLift(q, r);
         
         // When first selecting a piece, only show the cancel icon, not validate
         this.cancelIcon.position.set(position.x, POSITIONS.UI_VALIDATE_ICON_HEIGHT, position.z);
@@ -1467,9 +1772,31 @@ export class ThreeRenderer {
     }
     
     /**
+     * Clear only the valid move indicators (placeholders)
+     */
+    clearValidMoveIndicators() {
+        // Remove valid move indicators
+        while (this.validMovesGroup.children.length > 0) {
+            this.validMovesGroup.remove(this.validMovesGroup.children[0]);
+        }
+    }
+    
+    /**
      * Clear any UI elements for actions
      */
-    clearActionUI() {
+    clearActionUI(showDropAnimation = false) {
+        // Store piece positions that need to drop animation before clearing
+        const piecesToDrop = [];
+        if (showDropAnimation) {
+            for (const key in this.piecesMeshes) {
+                const piece = this.piecesMeshes[key];
+                if (piece && piece.position.y === POSITIONS.PIECE_FLOATING_HEIGHT) {
+                    const [q, r] = key.split(',').map(Number);
+                    piecesToDrop.push({ q, r });
+                }
+            }
+        }
+        
         // Hide UI icons
         this.cancelIcon.visible = false;
         this.validateIcon.visible = false;
@@ -1486,15 +1813,27 @@ export class ThreeRenderer {
             }
         }
         
-        // Clear valid move indicators
-        while (this.validMovesGroup.children.length > 0) {
-            this.validMovesGroup.remove(this.validMovesGroup.children[0]);
-        }
+        // Clear the temporary tile model reference
+        this.tempTileModel = null;
         
-        // Reset any lifted pieces back to their resting positions
-        for (const key in this.piecesMeshes) {
-            if (this.piecesMeshes[key]) {
-                this.piecesMeshes[key].position.y = POSITIONS.PIECE_RESTING_HEIGHT;
+        // Clear the temporary piece model reference
+        this.tempPieceModel = null;
+        
+        // Clear valid move indicators
+        this.clearValidMoveIndicators();
+        
+        // If there are pieces to animate dropping, do it
+        if (showDropAnimation && piecesToDrop.length > 0) {
+            // Animate each piece dropping
+            for (const { q, r } of piecesToDrop) {
+                this.animatePieceDropAfterMove(q, r);
+            }
+        } else {
+            // Reset any lifted pieces back to their resting positions immediately
+            for (const key in this.piecesMeshes) {
+                if (this.piecesMeshes[key]) {
+                    this.piecesMeshes[key].position.y = POSITIONS.PIECE_RESTING_HEIGHT;
+                }
             }
         }
     }
@@ -1569,5 +1908,79 @@ export class ThreeRenderer {
             this.camera.zoom = newZoom;
             this.camera.updateProjectionMatrix();
         }
+    }
+
+    /**
+     * Animate a piece being selected from the piece choice UI (when both disc and ring are available)
+     * @param {THREE.Object3D} model - The piece model to animate
+     * @param {Object} position - Target hex world position {x, z}
+     * @param {string} pieceType - 'disc' or 'ring'
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animatePieceSelection(model, position, pieceType) {
+        if (!model) {
+            console.warn('No model provided for piece selection animation');
+            return Promise.resolve();
+        }
+        
+        console.log(`Animating selection of ${pieceType} to position:`, position);
+        
+        // Store original values to animate from
+        const startPosition = model.position.clone();
+        const startRotation = new THREE.Euler().copy(model.rotation);
+        const startScale = model.scale.clone();
+        
+        // Define end values
+        const endPosition = new THREE.Vector3(position.x, POSITIONS.PIECE_FLOATING_HEIGHT, position.z);
+        const endRotation = new THREE.Euler(0, 0, 0); // Horizontal orientation
+        const endScale = new THREE.Vector3(1, 1, 1); // Full size
+        
+        // Animation duration
+        const duration = ANIMATION_CONFIG.DURATION * 1.5; // Slightly longer for complex animation
+        const startTime = performance.now();
+        
+        return new Promise((resolve) => {
+            const animate = () => {
+                const now = performance.now();
+                const elapsed = now - startTime;
+                let progress = Math.min(elapsed / duration, 1);
+                
+                // Apply bounce easing for position Y only
+                const easedProgress = ANIMATION_CONFIG.EASING.EASE_OUT(progress);
+                const bounceProgress = progress >= 1 ? 1 : ANIMATION_CONFIG.EASING.BOUNCE(progress);
+                
+                // Interpolate position
+                const x = THREE.MathUtils.lerp(startPosition.x, endPosition.x, easedProgress);
+                const z = THREE.MathUtils.lerp(startPosition.z, endPosition.z, easedProgress);
+                
+                // Special handling for y to add bounce effect
+                const y = THREE.MathUtils.lerp(startPosition.y, endPosition.y, bounceProgress);
+                
+                model.position.set(x, y, z);
+                
+                // Interpolate rotation
+                model.rotation.x = THREE.MathUtils.lerp(startRotation.x, endRotation.x, easedProgress);
+                model.rotation.y = THREE.MathUtils.lerp(startRotation.y, endRotation.y, easedProgress);
+                model.rotation.z = THREE.MathUtils.lerp(startRotation.z, endRotation.z, easedProgress);
+                
+                // Interpolate scale
+                const scaleX = THREE.MathUtils.lerp(startScale.x, endScale.x, easedProgress);
+                const scaleY = THREE.MathUtils.lerp(startScale.y, endScale.y, easedProgress);
+                const scaleZ = THREE.MathUtils.lerp(startScale.z, endScale.z, easedProgress);
+                model.scale.set(scaleX, scaleY, scaleZ);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Ensure final position, rotation, and scale are exact
+                    model.position.copy(endPosition);
+                    model.rotation.copy(endRotation);
+                    model.scale.copy(endScale);
+                    resolve();
+                }
+            };
+            
+            animate();
+        });
     }
 } 
