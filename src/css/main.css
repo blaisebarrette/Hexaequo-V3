@@ -189,7 +189,7 @@ body {
     }
 
     .ring-icon {
-        font-size: 1.5rem;
+        font-size: 1.3rem;
     }
     
     #new-game-button {
@@ -197,11 +197,86 @@ body {
     }
 }
 
+/* Phone Landscape Layout */
+@media (max-height: 500px) and (orientation: landscape) {
+    .game-container {
+        flex-direction: row;
+    }
+    
+    #game-board {
+        flex: 3;
+    }
+    
+    #game-status {
+        flex: 1;
+        max-width: 150px;
+        padding: 0.2rem;
+        border-top: none;
+        border-left: 1px solid var(--primary-color);
+    }
+    
+    #current-player {
+        font-size: 0.85rem;
+        margin-bottom: 0.15rem;
+    }
+    
+    .player-stats {
+        gap: 0.2rem;
+    }
+    
+    .player {
+        padding: 0.2rem;
+    }
+    
+    .player.black {
+        background-color: var(--black-piece-color);
+        color: var(--white-piece-color);
+    }
+    
+    .player.white {
+        background-color: var(--white-piece-color);
+        color: var(--black-piece-color);
+    }
+    
+    /* Ensure icons inherit the player's text color */
+    .player.black .piece-icon {
+        color: var(--white-piece-color);
+    }
+    
+    .player.white .piece-icon {
+        color: var(--black-piece-color);
+    }
+    
+    .player h3 {
+        font-size: 0.75rem;
+        margin-bottom: 0.15rem;
+    }
+    
+    .piece-counts {
+        gap: 0.15rem;
+    }
+    
+    .piece-count {
+        font-size: 0.75rem;
+    }
+    
+    .piece-icon {
+        font-size: 1.2rem;
+        width: 1.2rem;
+    }
+    
+    #new-game-button {
+        padding: 0.3rem;
+        margin-top: 0.3rem;
+        font-size: 0.75rem;
+    }
+}
+
 /* Settings Button */
 #settings-button {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: 0.4rem;
+    left: 0.4rem;
     background: var(--background-color);
     border: 1px solid var(--primary-color);
     border-radius: 50%;
