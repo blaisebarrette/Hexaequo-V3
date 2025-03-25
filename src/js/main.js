@@ -45,4 +45,68 @@ document.addEventListener('DOMContentLoaded', () => {
         storageManager.saveGame(gameState.getSerializableState());
         uiManager.updateUI();
     });
+    
+    // Handle zoom behavior
+    setupZoomHandling(threeRenderer);
 }); 
+
+/**
+ * Setup custom zoom handling for the game board only
+ * @param {ThreeRenderer} renderer - The 3D renderer instance
+ */
+function setupZoomHandling(renderer) {
+    const gameBoard = document.getElementById('game-board');
+    
+    // Prevent default pinch zoom behavior
+    document.addEventListener('touchmove', function(e) {
+        if (e.touches.length > 1) {
+            // Only prevent default if the touch is on the game board
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            
+            // Get touch coordinates
+            const touch1Element = document.elementFromPoint(touch1.clientX, touch1.clientY);
+            const touch2Element = document.elementFromPoint(touch2.clientX, touch2.clientY);
+            
+            // Check if both touches are on the game board
+            const isOnGameBoard = gameBoard.contains(touch1Element) && gameBoard.contains(touch2Element);
+            
+            if (isOnGameBoard) {
+                e.preventDefault();
+                
+                // Calculate distance between two fingers
+                const dist = Math.hypot(
+                    touch1.clientX - touch2.clientX,
+                    touch1.clientY - touch2.clientY
+                );
+                
+                // If we have a previous distance, calculate zoom factor
+                if (renderer.previousTouchDistance) {
+                    const zoomFactor = dist / renderer.previousTouchDistance;
+                    
+                    // Apply zoom to the camera
+                    if (renderer.camera) {
+                        if (zoomFactor > 1.05) { // Zoom in
+                            renderer.zoomIn(zoomFactor);
+                        } else if (zoomFactor < 0.95) { // Zoom out
+                            renderer.zoomOut(1/zoomFactor);
+                        }
+                    }
+                }
+                
+                // Store current distance for next comparison
+                renderer.previousTouchDistance = dist;
+            }
+        }
+    }, { passive: false });
+    
+    // Reset touch distance when touch ends
+    document.addEventListener('touchend', function() {
+        renderer.previousTouchDistance = null;
+    });
+    
+    // Reset touch distance when touch is cancelled
+    document.addEventListener('touchcancel', function() {
+        renderer.previousTouchDistance = null;
+    });
+} 

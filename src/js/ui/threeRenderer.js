@@ -1450,4 +1450,32 @@ export class ThreeRenderer {
         // Render scene
         this.renderer.render(this.scene, this.camera);
     }
+    
+    // Add zoom methods after the animate method
+    
+    /**
+     * Zoom in the camera by the specified factor
+     * @param {number} factor - The zoom factor
+     */
+    zoomIn(factor = 1.1) {
+        if (this.camera && this.camera.zoom) {
+            // Limit maximum zoom
+            const newZoom = Math.min(this.camera.zoom * factor, 3.0);
+            this.camera.zoom = newZoom;
+            this.camera.updateProjectionMatrix();
+        }
+    }
+    
+    /**
+     * Zoom out the camera by the specified factor
+     * @param {number} factor - The zoom factor
+     */
+    zoomOut(factor = 1.1) {
+        if (this.camera && this.camera.zoom) {
+            // Limit minimum zoom
+            const newZoom = Math.max(this.camera.zoom / factor, 0.5);
+            this.camera.zoom = newZoom;
+            this.camera.updateProjectionMatrix();
+        }
+    }
 } 
