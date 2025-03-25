@@ -140,6 +140,8 @@ export class ThreeRenderer {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(this.domElement.clientWidth, this.domElement.clientHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadow edges
         this.domElement.appendChild(this.renderer.domElement);
         
         // Create orbit controls
@@ -157,6 +159,16 @@ export class ThreeRenderer {
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
         directionalLight.position.set(5, 10, 5);
         directionalLight.castShadow = true;
+        // Configure shadow properties
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 30;
+        directionalLight.shadow.camera.left = -15;
+        directionalLight.shadow.camera.right = 15;
+        directionalLight.shadow.camera.top = 15;
+        directionalLight.shadow.camera.bottom = -15;
+        directionalLight.shadow.bias = -0.0005;
         this.scene.add(directionalLight);
         
         // Create groups for organizing the scene
@@ -228,6 +240,16 @@ export class ThreeRenderer {
                     path,
                     (gltf) => {
                         this.models[name] = gltf.scene.children[0];
+                        // Enable shadows for the model
+                        this.models[name].castShadow = true;
+                        this.models[name].receiveShadow = true;
+                        // Enable shadows for all child meshes
+                        this.models[name].traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            }
+                        });
                         resolve();
                     },
                     undefined,
@@ -270,6 +292,12 @@ export class ThreeRenderer {
         const blackTileMesh = new THREE.Mesh(tileGeometry, blackTileMaterial);
         const whiteTileMesh = new THREE.Mesh(tileGeometry, whiteTileMaterial);
         
+        // Enable shadows for fallback geometries
+        blackTileMesh.castShadow = true;
+        blackTileMesh.receiveShadow = true;
+        whiteTileMesh.castShadow = true;
+        whiteTileMesh.receiveShadow = true;
+        
         // Disc geometries
         const discGeometry = new THREE.CylinderGeometry(0.7, 0.7, 0.3, 32);
         
@@ -286,6 +314,12 @@ export class ThreeRenderer {
         
         const blackDiscMesh = new THREE.Mesh(discGeometry, blackDiscMaterial);
         const whiteDiscMesh = new THREE.Mesh(discGeometry, whiteDiscMaterial);
+        
+        // Enable shadows for discs
+        blackDiscMesh.castShadow = true;
+        blackDiscMesh.receiveShadow = true;
+        whiteDiscMesh.castShadow = true;
+        whiteDiscMesh.receiveShadow = true;
         
         // Ring geometries
         const ringGeometry = new THREE.TorusGeometry(0.7, 0.2, 16, 32);
@@ -304,6 +338,12 @@ export class ThreeRenderer {
         
         const blackRingMesh = new THREE.Mesh(ringGeometry, blackRingMaterial);
         const whiteRingMesh = new THREE.Mesh(ringGeometry, whiteRingMaterial);
+        
+        // Enable shadows for rings
+        blackRingMesh.castShadow = true;
+        blackRingMesh.receiveShadow = true;
+        whiteRingMesh.castShadow = true;
+        whiteRingMesh.receiveShadow = true;
         
         // Assign fallback meshes to models
         this.models.tile_black = blackTileMesh;
@@ -329,6 +369,19 @@ export class ThreeRenderer {
         
         this.tilesMeshes = {};
         this.piecesMeshes = {};
+        
+        // Add a much larger ground plane to appear infinite
+        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x444444,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2; // Rotate to horizontal
+        ground.position.y = -0.1; // Slightly below the tiles
+        ground.receiveShadow = true;
+        this.scene.add(ground);
         
         // Update the board based on the game state
         this.updateBoard();
@@ -395,6 +448,16 @@ export class ThreeRenderer {
         
         model.userData = { type: 'tile', q, r, color };
         
+        // Ensure shadows are enabled for cloned model
+        model.castShadow = true;
+        model.receiveShadow = true;
+        model.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+        
         // Add to scene
         this.tilesGroup.add(model);
         this.tilesMeshes[key] = model;
@@ -440,6 +503,16 @@ export class ThreeRenderer {
         const model = this.models[modelKey].clone();
         model.position.set(position.x, POSITIONS.PIECE_RESTING_HEIGHT, position.z); // Place slightly above the tile
         model.userData = { type: 'piece', pieceType: type, q, r, color };
+        
+        // Ensure shadows are enabled for cloned model
+        model.castShadow = true;
+        model.receiveShadow = true;
+        model.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
         
         console.log(`Set userData on model:`, model.userData);
         
@@ -1449,6 +1522,19 @@ export class ThreeRenderer {
         
         // Render scene
         this.renderer.render(this.scene, this.camera);
+    }
+    
+    /**
+     * Update the background color of the scene based on dark mode setting
+     * @param {boolean} isDarkMode - Whether dark mode is enabled
+     */
+    updateBackgroundColor(isDarkMode) {
+        // Use a darker color for dark mode, lighter for light mode
+        if (isDarkMode) {
+            this.scene.background = new THREE.Color(0x222222); // Dark gray for dark mode
+        } else {
+            this.scene.background = new THREE.Color(0xf0f0f0); // Light gray for light mode
+        }
     }
     
     // Add zoom methods after the animate method

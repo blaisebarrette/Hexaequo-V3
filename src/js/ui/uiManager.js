@@ -122,7 +122,11 @@ export class UIManager {
      * Toggle dark mode
      */
     toggleDarkMode() {
-        document.body.classList.toggle('dark-mode', this.darkModeCheckbox.checked);
+        const isDarkMode = this.darkModeCheckbox.checked;
+        document.body.classList.toggle('dark-mode', isDarkMode);
+        
+        // Update the 3D renderer background color
+        this.renderer.updateBackgroundColor(isDarkMode);
     }
     
     /**
