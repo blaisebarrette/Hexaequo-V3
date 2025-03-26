@@ -1059,15 +1059,48 @@ export class ThreeRenderer {
         const position = this.hexToWorld(q, r);
         
         // Find the existing floating piece in the UI group
-        const floatingPiece = this.uiGroup.children.find(
+        let floatingPiece = this.uiGroup.children.find(
             child => child.userData && 
                     child.userData.type === 'ui-icon' && 
                     child.userData.pieceType === pieceType
         );
         
+        // If no floating piece found, check for tempPieceModel
+        if (!floatingPiece && this.tempPieceModel) {
+            if (this.tempPieceModel.userData.pieceType === pieceType) {
+                floatingPiece = this.tempPieceModel;
+            }
+        }
+        
+        // If still no floating piece, create a temporary one
         if (!floatingPiece) {
-            console.warn('No floating piece found to animate');
-            return Promise.resolve();
+            console.warn(`No floating piece found, creating a temporary ${color} ${pieceType} for animation`);
+            
+            // Clone the appropriate model
+            const modelKey = `${pieceType}_${color}`;
+            if (!this.models[modelKey]) {
+                console.error(`Model not found for ${modelKey}`);
+                // Add the permanent piece without animation
+                this.addPiece(q, r, color, pieceType);
+                return Promise.resolve();
+            }
+            
+            floatingPiece = this.models[modelKey].clone();
+            
+            // Position at the floating height
+            const tempPos = new THREE.Vector3(position.x, POSITIONS.PIECE_FLOATING_HEIGHT, position.z);
+            floatingPiece.position.copy(tempPos);
+            
+            // Add user data
+            floatingPiece.userData = { 
+                type: 'ui-icon', 
+                pieceType: pieceType, 
+                q, 
+                r, 
+                color
+            };
+            
+            this.uiGroup.add(floatingPiece);
         }
         
         const startPos = floatingPiece.position.clone();
@@ -1136,7 +1169,7 @@ export class ThreeRenderer {
         const piecesToCapture = [];
         
         // Check if this is a jump move by a disc piece and if there's a piece to be captured
-        if (pieceMesh.userData.pieceType === 'disc') {
+        if (pieceMesh.userData && pieceMesh.userData.pieceType === 'disc') {
             // Calculate if this is a jump (distance of 2)
             const distance = Math.max(
                 Math.abs(toQ - fromQ), 
@@ -1152,7 +1185,7 @@ export class ThreeRenderer {
                 
                 // Check if there's a piece at the jumped position
                 const jumpedPieceMesh = this.piecesMeshes[jumpedKey];
-                if (jumpedPieceMesh) {
+                if (jumpedPieceMesh && jumpedPieceMesh.userData) {
                     // Only remove the piece if it's an opponent's piece
                     const jumpedPieceColor = jumpedPieceMesh.userData.color;
                     const movingPieceColor = pieceMesh.userData.color;
@@ -1171,9 +1204,11 @@ export class ThreeRenderer {
             }
         }
         
+        // Handle ring capture - special case because ring moves to the captured piece's position
+        let capturedPieceMesh = null;
         // Check if there's a piece at the destination that needs to be captured (for ring movement)
         const destPieceMesh = this.piecesMeshes[toKey];
-        if (destPieceMesh) {
+        if (destPieceMesh && pieceMesh.userData) {
             // Check if this is a ring (which can capture by moving onto a piece)
             if (pieceMesh.userData.pieceType === 'ring') {
                 // Only remove the piece if it's an opponent's piece
@@ -1185,8 +1220,12 @@ export class ThreeRenderer {
                 // Only capture opponent's pieces, not your own
                 if (destPieceColor !== movingPieceColor) {
                     console.log(`Ring capturing opponent piece at (${toQ}, ${toR})`);
-                    // Store info for animation after the movement completes
-                    piecesToCapture.push({ q: toQ, r: toR });
+                    
+                    // Save the mesh to be captured before we overwrite it
+                    capturedPieceMesh = destPieceMesh;
+                    
+                    // Remove from tracking but DON'T remove from scene yet - we need to animate it
+                    delete this.piecesMeshes[toKey];
                 }
             }
         }
@@ -1196,8 +1235,10 @@ export class ThreeRenderer {
         this.piecesMeshes[toKey] = pieceMesh;
         
         // Update the piece's userData
-        pieceMesh.userData.q = toQ;
-        pieceMesh.userData.r = toR;
+        if (pieceMesh.userData) {
+            pieceMesh.userData.q = toQ;
+            pieceMesh.userData.r = toR;
+        }
         
         // Animate the piece moving with an arc path
         await this.animationHandler.animatePosition(
@@ -1210,9 +1251,184 @@ export class ThreeRenderer {
             }
         );
         
+        // If we have a captured piece from a ring move, animate it now
+        if (capturedPieceMesh) {
+            try {
+                console.log(`Animating ring-captured piece`);
+                // Ensure we animate the correct mesh, not looking it up by coordinates
+                await this.animateCapturedPieceMesh(capturedPieceMesh, toQ, toR);
+            } catch (error) {
+                console.error(`Error animating ring-captured piece:`, error);
+                // Make sure the piece is removed from the scene
+                if (capturedPieceMesh.parent) {
+                    capturedPieceMesh.parent.remove(capturedPieceMesh);
+                }
+            }
+        }
+        
         // After piece movement animation completes, animate the captured pieces
         for (const capturedPiece of piecesToCapture) {
-            await this.animatePieceCapture(capturedPiece.q, capturedPiece.r);
+            try {
+                await this.animatePieceCapture(capturedPiece.q, capturedPiece.r);
+            } catch (error) {
+                console.error(`Error animating capture at (${capturedPiece.q}, ${capturedPiece.r}):`, error);
+                // Remove the piece directly as fallback
+                this.removePiece(capturedPiece.q, capturedPiece.r);
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Animate a captured piece mesh directly (used for ring captures)
+     * @param {THREE.Object3D} pieceMesh - The piece mesh to animate
+     * @param {number} q - Original hex q coordinate
+     * @param {number} r - Original hex r coordinate
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animateCapturedPieceMesh(pieceMesh, q, r) {
+        if (!pieceMesh) {
+            console.warn(`No piece mesh provided to animate capture`);
+            return Promise.resolve();
+        }
+        
+        console.log(`Animating piece mesh capture from position (${q}, ${r})`);
+        
+        try {
+            // Get the world position for reference
+            const worldPos = this.hexToWorld(q, r);
+            
+            // Create safe start position - using current position
+            const startPos = new THREE.Vector3(
+                pieceMesh.position.x,
+                pieceMesh.position.y,
+                pieceMesh.position.z
+            );
+            
+            // Create end position (2 units above start)
+            const endPos = new THREE.Vector3(
+                startPos.x,
+                startPos.y + 2,
+                startPos.z
+            );
+            
+            // Create copies of the original materials to avoid affecting other pieces
+            const originalMaterials = [];
+            const materialMap = new Map();
+            
+            // Make the specific piece's materials transparent for opacity animation
+            // We need to save references and create clones to avoid affecting other pieces
+            pieceMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (Array.isArray(child.material)) {
+                        const newMaterials = [];
+                        child.material.forEach((material, index) => {
+                            if (material) {
+                                // Store original
+                                originalMaterials.push({
+                                    mesh: child,
+                                    index: index,
+                                    material: material
+                                });
+                                
+                                // Create a clone of the material to avoid affecting other pieces
+                                const newMaterial = material.clone();
+                                newMaterial.transparent = true;
+                                newMaterial.opacity = 1.0;
+                                newMaterial.needsUpdate = true;
+                                
+                                // Save in our map for animation
+                                materialMap.set(newMaterial, 1.0);
+                                newMaterials.push(newMaterial);
+                            } else {
+                                newMaterials.push(null);
+                            }
+                        });
+                        child.material = newMaterials;
+                    } else if (child.material) {
+                        // Store original
+                        originalMaterials.push({
+                            mesh: child,
+                            material: child.material
+                        });
+                        
+                        // Create a clone of the material
+                        const newMaterial = child.material.clone();
+                        newMaterial.transparent = true;
+                        newMaterial.opacity = 1.0;
+                        newMaterial.needsUpdate = true;
+                        
+                        // Save in our map for animation
+                        materialMap.set(newMaterial, 1.0);
+                        child.material = newMaterial;
+                    }
+                }
+            });
+            
+            // Animate position manually rather than using the animation handler
+            // to avoid potential THREE.js vector calculations that might cause errors
+            const duration = 600; // milliseconds
+            const startTime = performance.now();
+            
+            // Use manual animation loop instead of the animation handler
+            await new Promise(resolve => {
+                const animate = () => {
+                    const elapsedTime = performance.now() - startTime;
+                    const progress = Math.min(elapsedTime / duration, 1);
+                    
+                    // Apply simple easing
+                    const easedProgress = progress * (2 - progress); // Quadratic ease-out
+                    
+                    // Update position
+                    pieceMesh.position.set(
+                        startPos.x,
+                        startPos.y + (endPos.y - startPos.y) * easedProgress,
+                        startPos.z
+                    );
+                    
+                    // Update opacity ONLY for the materials in our map
+                    const newOpacity = 1.0 - easedProgress;
+                    for (const [material, _] of materialMap) {
+                        material.opacity = newOpacity;
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        // Ensure we set the final state
+                        pieceMesh.position.set(endPos.x, endPos.y, endPos.z);
+                        
+                        // Set final opacity to 0 for our specific materials
+                        for (const [material, _] of materialMap) {
+                            material.opacity = 0;
+                        }
+                        
+                        // Remove the piece from the scene
+                        if (pieceMesh.parent) {
+                            pieceMesh.parent.remove(pieceMesh);
+                        }
+                        
+                        // Dispose of our cloned materials to prevent memory leaks
+                        for (const [material, _] of materialMap) {
+                            material.dispose();
+                        }
+                        
+                        resolve();
+                    }
+                };
+                
+                // Start animation
+                animate();
+            });
+            
+        } catch (error) {
+            console.error(`Error during capture animation for mesh:`, error);
+            
+            // Clean up even if animation fails
+            if (pieceMesh.parent) {
+                pieceMesh.parent.remove(pieceMesh);
+            }
         }
         
         return true;
@@ -1230,64 +1446,155 @@ export class ThreeRenderer {
         
         if (!pieceMesh) {
             console.warn(`No piece found at (${q}, ${r}) to animate capture`);
+            // Just in case, remove from tracking
+            delete this.piecesMeshes[key];
             return Promise.resolve();
         }
         
         console.log(`Animating piece capture at (${q}, ${r})`);
         
-        // Define positions for the animation
-        const startPos = pieceMesh.position.clone();
-        const endPos = new THREE.Vector3(
-            startPos.x,
-            startPos.y + 2, // Move up by 2 units
-            startPos.z
-        );
-        
-        // Start with full opacity
-        const startOpacity = 1.0;
-        const endOpacity = 0.0;
-        
-        // Duration slightly longer than normal animations
-        const duration = ANIMATION_CONFIG.DURATION * 1.2;
-        
-        // Make the captured piece temporarily transparent
-        pieceMesh.traverse((child) => {
-            if (child.isMesh && child.material) {
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(material => {
-                        material.transparent = true;
-                    });
-                } else {
-                    child.material.transparent = true;
+        try {
+            // Get the world position from hex coordinates as our primary reference
+            const worldPos = this.hexToWorld(q, r);
+            
+            // Create safe start position - using world position to avoid THREE.js vector issues
+            const startPos = new THREE.Vector3(
+                worldPos.x,
+                pieceMesh.position && typeof pieceMesh.position.y === 'number' 
+                    ? pieceMesh.position.y 
+                    : 0.2, // Default height if we can't get it
+                worldPos.z
+            );
+            
+            // Create end position (2 units above start)
+            const endPos = new THREE.Vector3(
+                startPos.x,
+                startPos.y + 2,
+                startPos.z
+            );
+            
+            // Ensure piece is at the start position
+            pieceMesh.position.set(startPos.x, startPos.y, startPos.z);
+            
+            // Create copies of the original materials to avoid affecting other pieces
+            const originalMaterials = [];
+            const materialMap = new Map();
+            
+            // Make the specific piece's materials transparent for opacity animation
+            // We need to save references and create clones to avoid affecting other pieces
+            pieceMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (Array.isArray(child.material)) {
+                        const newMaterials = [];
+                        child.material.forEach((material, index) => {
+                            if (material) {
+                                // Store original
+                                originalMaterials.push({
+                                    mesh: child,
+                                    index: index,
+                                    material: material
+                                });
+                                
+                                // Create a clone of the material to avoid affecting other pieces
+                                const newMaterial = material.clone();
+                                newMaterial.transparent = true;
+                                newMaterial.opacity = 1.0;
+                                newMaterial.needsUpdate = true;
+                                
+                                // Save in our map for animation
+                                materialMap.set(newMaterial, 1.0);
+                                newMaterials.push(newMaterial);
+                            } else {
+                                newMaterials.push(null);
+                            }
+                        });
+                        child.material = newMaterials;
+                    } else if (child.material) {
+                        // Store original
+                        originalMaterials.push({
+                            mesh: child,
+                            material: child.material
+                        });
+                        
+                        // Create a clone of the material
+                        const newMaterial = child.material.clone();
+                        newMaterial.transparent = true;
+                        newMaterial.opacity = 1.0;
+                        newMaterial.needsUpdate = true;
+                        
+                        // Save in our map for animation
+                        materialMap.set(newMaterial, 1.0);
+                        child.material = newMaterial;
+                    }
                 }
+            });
+            
+            // Animate position manually rather than using the animation handler
+            // to avoid potential THREE.js vector calculations that might cause errors
+            const duration = 600; // milliseconds
+            const startTime = performance.now();
+            
+            // Use manual animation loop instead of the animation handler
+            await new Promise(resolve => {
+                const animate = () => {
+                    const elapsedTime = performance.now() - startTime;
+                    const progress = Math.min(elapsedTime / duration, 1);
+                    
+                    // Apply simple easing
+                    const easedProgress = progress * (2 - progress); // Quadratic ease-out
+                    
+                    // Update position
+                    pieceMesh.position.set(
+                        startPos.x,
+                        startPos.y + (endPos.y - startPos.y) * easedProgress,
+                        startPos.z
+                    );
+                    
+                    // Update opacity ONLY for the materials in our map
+                    const newOpacity = 1.0 - easedProgress;
+                    for (const [material, _] of materialMap) {
+                        material.opacity = newOpacity;
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        // Ensure we set the final state
+                        pieceMesh.position.set(endPos.x, endPos.y, endPos.z);
+                        
+                        // Set final opacity to 0 for our specific materials
+                        for (const [material, _] of materialMap) {
+                            material.opacity = 0;
+                        }
+                        
+                        // Remove the piece from tracking and scene
+                        delete this.piecesMeshes[key];
+                        if (pieceMesh.parent) {
+                            pieceMesh.parent.remove(pieceMesh);
+                        }
+                        
+                        // Dispose of our cloned materials to prevent memory leaks
+                        for (const [material, _] of materialMap) {
+                            material.dispose();
+                        }
+                        
+                        resolve();
+                    }
+                };
+                
+                // Start animation
+                animate();
+            });
+            
+        } catch (error) {
+            console.error(`Error during capture animation for piece at (${q}, ${r}):`, error);
+            
+            // Clean up even if animation fails
+            delete this.piecesMeshes[key];
+            if (pieceMesh && pieceMesh.parent) {
+                pieceMesh.parent.remove(pieceMesh);
             }
-        });
-        
-        // Perform both position and opacity animations simultaneously
-        await Promise.all([
-            this.animationHandler.animatePosition(
-                pieceMesh,
-                startPos,
-                endPos,
-                {
-                    easing: ANIMATION_CONFIG.EASING.EASE_OUT,
-                    duration
-                }
-            ),
-            this.animationHandler.animateOpacity(
-                pieceMesh,
-                startOpacity,
-                endOpacity,
-                {
-                    easing: ANIMATION_CONFIG.EASING.EASE_OUT,
-                    duration
-                }
-            )
-        ]);
-        
-        // Remove the piece from tracking and scene after animation
-        delete this.piecesMeshes[key];
-        pieceMesh.parent.remove(pieceMesh);
+        }
         
         return true;
     }
