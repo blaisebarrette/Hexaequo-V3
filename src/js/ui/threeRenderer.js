@@ -1131,26 +1131,9 @@ export class ThreeRenderer {
             POSITIONS.PIECE_FLOATING_HEIGHT,
             toPosition.z
         );
-        
-        // Check if there's a piece at the destination that needs to be captured
-        const destPieceMesh = this.piecesMeshes[toKey];
-        if (destPieceMesh) {
-            // Check if this is a ring (which can capture by moving onto a piece)
-            if (pieceMesh.userData.pieceType === 'ring') {
-                // Only remove the piece if it's an opponent's piece
-                const destPieceColor = destPieceMesh.userData.color;
-                const movingPieceColor = pieceMesh.userData.color;
-                
-                console.log(`Ring moving to position with piece: ${destPieceColor} (ring color: ${movingPieceColor})`);
-                
-                // Only remove opponent's pieces, not your own
-                if (destPieceColor !== movingPieceColor) {
-                    console.log(`Ring capturing opponent piece at (${toQ}, ${toR})`);
-                    // Remove the piece from the scene (visual removal)
-                    this.removePiece(toQ, toR);
-                }
-            }
-        }
+
+        // Store information about pieces to be captured
+        const piecesToCapture = [];
         
         // Check if this is a jump move by a disc piece and if there's a piece to be captured
         if (pieceMesh.userData.pieceType === 'disc') {
@@ -1178,12 +1161,32 @@ export class ThreeRenderer {
                     
                     // Only visually remove opponent's pieces, not your own
                     if (jumpedPieceColor !== movingPieceColor) {
-                        console.log(`Removing captured opponent piece at (${jumpedQ}, ${jumpedR})`);
-                        // Remove the piece from the scene (visual removal)
-                        this.removePiece(jumpedQ, jumpedR);
+                        console.log(`Capturing opponent piece at (${jumpedQ}, ${jumpedR})`);
+                        // Store info for animation after the movement completes
+                        piecesToCapture.push({ q: jumpedQ, r: jumpedR });
                     } else {
                         console.log(`Not removing own piece at (${jumpedQ}, ${jumpedR})`);
                     }
+                }
+            }
+        }
+        
+        // Check if there's a piece at the destination that needs to be captured (for ring movement)
+        const destPieceMesh = this.piecesMeshes[toKey];
+        if (destPieceMesh) {
+            // Check if this is a ring (which can capture by moving onto a piece)
+            if (pieceMesh.userData.pieceType === 'ring') {
+                // Only remove the piece if it's an opponent's piece
+                const destPieceColor = destPieceMesh.userData.color;
+                const movingPieceColor = pieceMesh.userData.color;
+                
+                console.log(`Ring moving to position with piece: ${destPieceColor} (ring color: ${movingPieceColor})`);
+                
+                // Only capture opponent's pieces, not your own
+                if (destPieceColor !== movingPieceColor) {
+                    console.log(`Ring capturing opponent piece at (${toQ}, ${toR})`);
+                    // Store info for animation after the movement completes
+                    piecesToCapture.push({ q: toQ, r: toR });
                 }
             }
         }
@@ -1206,6 +1209,85 @@ export class ThreeRenderer {
                 duration: ANIMATION_CONFIG.DURATION
             }
         );
+        
+        // After piece movement animation completes, animate the captured pieces
+        for (const capturedPiece of piecesToCapture) {
+            await this.animatePieceCapture(capturedPiece.q, capturedPiece.r);
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Animate a piece being captured - floating upward while fading out
+     * @param {number} q - Hex q coordinate of the captured piece
+     * @param {number} r - Hex r coordinate of the captured piece
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    async animatePieceCapture(q, r) {
+        const key = `${q},${r}`;
+        const pieceMesh = this.piecesMeshes[key];
+        
+        if (!pieceMesh) {
+            console.warn(`No piece found at (${q}, ${r}) to animate capture`);
+            return Promise.resolve();
+        }
+        
+        console.log(`Animating piece capture at (${q}, ${r})`);
+        
+        // Define positions for the animation
+        const startPos = pieceMesh.position.clone();
+        const endPos = new THREE.Vector3(
+            startPos.x,
+            startPos.y + 2, // Move up by 2 units
+            startPos.z
+        );
+        
+        // Start with full opacity
+        const startOpacity = 1.0;
+        const endOpacity = 0.0;
+        
+        // Duration slightly longer than normal animations
+        const duration = ANIMATION_CONFIG.DURATION * 1.2;
+        
+        // Make the captured piece temporarily transparent
+        pieceMesh.traverse((child) => {
+            if (child.isMesh && child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(material => {
+                        material.transparent = true;
+                    });
+                } else {
+                    child.material.transparent = true;
+                }
+            }
+        });
+        
+        // Perform both position and opacity animations simultaneously
+        await Promise.all([
+            this.animationHandler.animatePosition(
+                pieceMesh,
+                startPos,
+                endPos,
+                {
+                    easing: ANIMATION_CONFIG.EASING.EASE_OUT,
+                    duration
+                }
+            ),
+            this.animationHandler.animateOpacity(
+                pieceMesh,
+                startOpacity,
+                endOpacity,
+                {
+                    easing: ANIMATION_CONFIG.EASING.EASE_OUT,
+                    duration
+                }
+            )
+        ]);
+        
+        // Remove the piece from tracking and scene after animation
+        delete this.piecesMeshes[key];
+        pieceMesh.parent.remove(pieceMesh);
         
         return true;
     }
@@ -1407,6 +1489,16 @@ export class ThreeRenderer {
      * These are always present for interaction, but only visible when "Show valid moves" is checked
      */
     showValidActionPlaceholders() {
+        // Check if game is over - if so, don't show any placeholders
+        if (this.gameState.gameStatus !== 'ongoing') {
+            console.log('Game is over, not showing any placeholders');
+            // Clear any existing placeholders
+            while (this.validMovesGroup.children.length > 0) {
+                this.validMovesGroup.remove(this.validMovesGroup.children[0]);
+            }
+            return;
+        }
+        
         const currentPlayer = this.gameState.currentPlayer;
         const showValidMoves = document.getElementById('show-valid-moves').checked;
         
@@ -1965,16 +2057,13 @@ export class ThreeRenderer {
                 const elapsed = now - startTime;
                 let progress = Math.min(elapsed / duration, 1);
                 
-                // Apply bounce easing for position Y only
+                // Apply smooth ease-out for all transformations
                 const easedProgress = ANIMATION_CONFIG.EASING.EASE_OUT(progress);
-                const bounceProgress = progress >= 1 ? 1 : ANIMATION_CONFIG.EASING.BOUNCE(progress);
                 
-                // Interpolate position
+                // Interpolate position (all axes with the same easing)
                 const x = THREE.MathUtils.lerp(startPosition.x, endPosition.x, easedProgress);
+                const y = THREE.MathUtils.lerp(startPosition.y, endPosition.y, easedProgress);
                 const z = THREE.MathUtils.lerp(startPosition.z, endPosition.z, easedProgress);
-                
-                // Special handling for y to add bounce effect
-                const y = THREE.MathUtils.lerp(startPosition.y, endPosition.y, bounceProgress);
                 
                 model.position.set(x, y, z);
                 

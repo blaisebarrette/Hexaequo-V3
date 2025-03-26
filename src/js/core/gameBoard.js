@@ -35,6 +35,12 @@ export class GameBoard {
      * @param {Event} event - The click event
      */
     async onClick(event) {
+        // Check if game is over - if so, ignore all clicks
+        if (this.gameState.gameStatus !== 'ongoing') {
+            console.log('Game is over, ignoring clicks');
+            return;
+        }
+        
         // Get mouse position relative to the canvas
         const rect = this.renderer.domElement.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -423,20 +429,30 @@ export class GameBoard {
                                 this.renderer.showFurtherJumpUI(hex.q, hex.r, furtherJumps);
                                 return;
                             }
+                            
+                            // Show validation UI for discs after a move that has no further jumps
+                            this.gameState.selectedPiece = { 
+                                q: hex.q, 
+                                r: hex.r,
+                                type: selectedPiece.type,
+                                color: pieceColor
+                            };
+                            this.renderer.showValidationUI(hex.q, hex.r);
+                        } else if (selectedPiece.type === 'ring') {
+                            // For rings, show validation UI but don't allow further moves
+                            console.log('Ring move completed, showing validation UI');
+                            
+                            // Update the selected piece for the UI
+                            this.gameState.selectedPiece = { 
+                                q: hex.q, 
+                                r: hex.r,
+                                type: 'ring',
+                                color: pieceColor
+                            };
+                            
+                            // Show validation UI (only cancel/validate buttons, no further moves)
+                            this.renderer.showValidationUI(hex.q, hex.r);
                         }
-                        
-                        // Always show validation UI after a piece is moved 
-                        // (not just for further jumps)
-                        this.gameState.selectedPiece = { 
-                            q: hex.q, 
-                            r: hex.r,
-                            type: selectedPiece.type,
-                            color: pieceColor
-                        };
-                        this.renderer.showValidationUI(hex.q, hex.r);
-                        
-                        // Note: We don't automatically end the turn anymore
-                        // The player must click "Validate" to end their turn
                     }
                 }
             } else {
@@ -509,20 +525,30 @@ export class GameBoard {
                                     this.renderer.showFurtherJumpUI(hex.q, hex.r, furtherJumps);
                                     return;
                                 }
+                                
+                                // Show validation UI for discs after a move that has no further jumps
+                                this.gameState.selectedPiece = { 
+                                    q: hex.q, 
+                                    r: hex.r,
+                                    type: selectedPiece.type,
+                                    color: pieceColor
+                                };
+                                this.renderer.showValidationUI(hex.q, hex.r);
+                            } else if (selectedPiece.type === 'ring') {
+                                // For rings, show validation UI but don't allow further moves
+                                console.log('Ring move completed, showing validation UI');
+                                
+                                // Update the selected piece for the UI
+                                this.gameState.selectedPiece = { 
+                                    q: hex.q, 
+                                    r: hex.r,
+                                    type: 'ring',
+                                    color: pieceColor
+                                };
+                                
+                                // Show validation UI (only cancel/validate buttons, no further moves)
+                                this.renderer.showValidationUI(hex.q, hex.r);
                             }
-                            
-                            // Always show validation UI after a piece is moved 
-                            // (not just for further jumps)
-                            this.gameState.selectedPiece = { 
-                                q: hex.q, 
-                                r: hex.r,
-                                type: selectedPiece.type,
-                                color: pieceColor
-                            };
-                            this.renderer.showValidationUI(hex.q, hex.r);
-                            
-                            // Note: We don't automatically end the turn anymore
-                            // The player must click "Validate" to end their turn
                         }
                     }
                 }

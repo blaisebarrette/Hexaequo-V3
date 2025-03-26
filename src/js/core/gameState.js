@@ -236,6 +236,12 @@ export class GameState {
         return true;
     }
     
+    /**
+     * Capture a piece at the specified coordinates
+     * @param {number} q - Hex q coordinate
+     * @param {number} r - Hex r coordinate
+     * @returns {boolean} - True if successful, false otherwise
+     */
     capturePiece(q, r) {
         const key = `${q},${r}`;
         const tile = this.board.tiles[key];
@@ -255,14 +261,14 @@ export class GameState {
         // Remove the piece from the board
         tile.piece = null;
         
-        // Check for victory
-        this.checkVictoryConditions();
+        // We'll check for victory when the turn is finalized, not here
+        // This allows the player to cancel the move even if it would result in a win
         
         return true;
     }
     
     endTurn() {
-        // Check for victory or draw conditions
+        // Check for victory or draw conditions - only now do we finalize the game result
         this.checkVictoryConditions();
         this.checkDrawConditions();
         
@@ -648,12 +654,16 @@ export class GameState {
         // Deep clone the board tiles and pieces
         this.savedState = {
             board: {
-                tiles: JSON.parse(JSON.stringify(this.board.tiles))
+                tiles: JSON.parse(JSON.stringify(this.board.tiles)),
+                positionHistory: [...this.board.positionHistory]
             },
             currentPlayer: this.currentPlayer,
             currentAction: this.currentAction,
             selectedPiece: this.selectedPiece ? { ...this.selectedPiece } : null,
-            pieces: JSON.parse(JSON.stringify(this.pieces))
+            pieces: JSON.parse(JSON.stringify(this.pieces)),
+            gameStatus: this.gameStatus,
+            winner: this.winner,
+            drawReason: this.drawReason
         };
     }
 
@@ -666,10 +676,14 @@ export class GameState {
         
         // Restore board state
         this.board.tiles = JSON.parse(JSON.stringify(this.savedState.board.tiles));
+        this.board.positionHistory = [...this.savedState.board.positionHistory];
         this.currentPlayer = this.savedState.currentPlayer;
         this.currentAction = this.savedState.currentAction;
         this.selectedPiece = this.savedState.selectedPiece ? { ...this.savedState.selectedPiece } : null;
         this.pieces = JSON.parse(JSON.stringify(this.savedState.pieces));
+        this.gameStatus = this.savedState.gameStatus;
+        this.winner = this.savedState.winner;
+        this.drawReason = this.savedState.drawReason;
         
         // Notify that state has changed
         this.notifyStateChange();
