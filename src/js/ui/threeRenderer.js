@@ -1988,33 +1988,28 @@ export class ThreeRenderer {
      */
     async showPieceMovementUI(q, r, validMoves) {
         const position = this.hexToWorld(q, r);
-        const key = `${q},${r}`;
         
-        console.log(`Showing piece movement UI at (${q}, ${r})`);
-        
-        // Ensure we have the correct piece information
-        let pieceType = 'disc'; // Default fallback
-        let pieceColor = this.gameState.currentPlayer;
-        
-        // Check if we have a piece in the game state at this position
-        const tileData = this.gameState.board.tiles[key];
-        if (tileData && tileData.piece) {
-            console.log(`Found piece in game state: ${tileData.piece.color} ${tileData.piece.type}`);
-            pieceType = tileData.piece.type;
-            pieceColor = tileData.piece.color;
+        // Get the piece at the clicked position
+        const piece = this.gameState.board.tiles[`${q},${r}`].piece;
+        if (!piece) {
+            console.warn('No piece found at clicked position');
+            return;
         }
         
-        // Or if we have piece info in selectedPiece
-        if (this.gameState.selectedPiece && this.gameState.selectedPiece.type) {
-            console.log(`Found piece in selectedPiece: ${this.gameState.selectedPiece.color || pieceColor} ${this.gameState.selectedPiece.type}`);
-            pieceType = this.gameState.selectedPiece.type;
-            if (this.gameState.selectedPiece.color) {
-                pieceColor = this.gameState.selectedPiece.color;
+        const pieceColor = piece.color;
+        const pieceType = piece.type;
+        
+        // If this is a ring that has already moved (has a selectedPiece with different coordinates),
+        // don't show any valid moves
+        if (pieceType === 'ring' && this.gameState.selectedPiece) {
+            if (this.gameState.selectedPiece.q !== q || this.gameState.selectedPiece.r !== r) {
+                console.log('Ring has already moved, not showing valid moves');
+                return;
             }
         }
         
-        // Get or create the correct piece mesh
-        const pieceMesh = this.piecesMeshes[key];
+        // Get or create the piece mesh
+        const pieceMesh = this.piecesMeshes[`${q},${r}`];
         
         if (!pieceMesh) {
             console.log(`No piece mesh found, creating a ${pieceColor} ${pieceType}`);

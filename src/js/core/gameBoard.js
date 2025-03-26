@@ -318,6 +318,22 @@ export class GameBoard {
         const currentAction = this.gameState.currentAction;
         console.log(`Current player: ${currentPlayer}, Current action: ${currentAction}`);
         
+        // Check if we're in a move_piece action with a ring piece that's awaiting validation
+        // If yes, clicking on board tiles should be ignored
+        if (currentAction === 'move_piece' && this.gameState.selectedPiece) {
+            const selectedPiece = this.gameState.selectedPiece;
+            
+            // If the selected piece is a ring and the ring has a different source vs current position
+            // (which means it has already moved and is awaiting validation)
+            if (selectedPiece.type === 'ring') {
+                // Check if the ring has moved by seeing if there are validation icons visible
+                if (this.renderer.validateIcon.visible) {
+                    console.log('Ring has already moved and is awaiting validation, ignoring tile clicks');
+                    return; // Ignore the click, only cancel/validate should be processed
+                }
+            }
+        }
+        
         // Handle the click based on the current action
         if (!currentAction) {
             // No action in progress - start a new action
@@ -368,6 +384,12 @@ export class GameBoard {
                 
                 if (selectedPiece) {
                     console.log('Selected piece before move:', selectedPiece);
+                    
+                    // If this is a ring that's already moved, don't allow further moves
+                    if (selectedPiece.type === 'ring' && this.renderer.validateIcon.visible) {
+                        console.log('Ring has already moved, ignoring this move attempt');
+                        return;
+                    }
                     
                     // Ensure we have the color of the piece
                     const fromKey = `${selectedPiece.q},${selectedPiece.r}`;
@@ -459,6 +481,12 @@ export class GameBoard {
                 // Regular click on the board while moving a piece (unchanged)
                 const selectedPiece = this.gameState.selectedPiece;
                 if (selectedPiece) {
+                    // If this is a ring that's already moved, don't allow further moves
+                    if (selectedPiece.type === 'ring' && this.renderer.validateIcon.visible) {
+                        console.log('Ring has already moved, ignoring this move attempt');
+                        return;
+                    }
+                    
                     const validMoves = this.gameState.getValidMoves(selectedPiece.q, selectedPiece.r);
                     const isMoveValid = validMoves.some(move => move.q === hex.q && move.r === hex.r);
                     
