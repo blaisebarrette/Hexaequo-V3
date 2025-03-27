@@ -2291,7 +2291,7 @@ export class ThreeRenderer {
         } else {
             this.scene.background = new THREE.Color(0xf0f0f0); // Light gray for light mode
             if (this.ground) {
-                this.ground.material.color.setHex(0xcccccc); // Lighter ground for light mode
+                this.ground.material.color.setHex(0xe8e8e8); // Lighter ground for light mode
             }
         }
     }
