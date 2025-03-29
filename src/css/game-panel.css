@@ -1,0 +1,220 @@
+/**
+ * Game Panel Styles
+ * Styles for the game panel UI elements including player info, inventory, and buttons
+ */
+
+/* Main panel container */
+#game-panel {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--secondary-color);
+    color: white;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.3s ease;
+    overflow-y: auto;
+}
+
+/* Player info section */
+#player-info {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-info-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.turn-indicator {
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    padding: 8px;
+    border-radius: var(--border-radius);
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.player-row {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-radius: var(--border-radius);
+    transition: background-color 0.2s ease;
+}
+
+.player-row.active {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.player-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.player-color.black {
+    background-color: #222;
+    border: 1px solid #444;
+}
+
+.player-color.white {
+    background-color: #eee;
+    border: 1px solid #ccc;
+}
+
+.player-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.player-score {
+    font-weight: bold;
+    min-width: 30px;
+    text-align: right;
+}
+
+/* Piece inventory section */
+#piece-inventory {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.inventory-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.player-inventory {
+    margin-bottom: 15px;
+}
+
+.inventory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-radius: var(--border-radius);
+    background-color: rgba(0, 0, 0, 0.2);
+    margin-bottom: 8px;
+}
+
+.inventory-player-name {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+}
+
+.pieces-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.piece-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    border-radius: var(--border-radius);
+    background-color: rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.piece-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.piece-item.selected {
+    background-color: rgba(var(--primary-color-rgb), 0.3);
+}
+
+.piece-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 5px;
+    position: relative;
+}
+
+.piece-count {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* Action buttons section */
+#action-buttons {
+    padding: 15px;
+}
+
+.action-buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.action-buttons-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.action-button {
+    padding: 10px;
+    border-radius: var(--border-radius);
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.action-button:hover {
+    background-color: var(--primary-color-dark);
+}
+
+.action-button.active {
+    background-color: var(--highlight-color);
+}
+
+.action-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.end-turn-button {
+    background-color: var(--secondary-color-light);
+    margin-top: 5px;
+}
+
+.end-turn-button:hover {
+    background-color: var(--secondary-color-dark);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    #game-panel {
+        max-height: 40vh;
+    }
+    
+    .pieces-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .action-buttons-group {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .pieces-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .action-buttons-group {
+        grid-template-columns: 1fr 1fr;
+    }
+} 

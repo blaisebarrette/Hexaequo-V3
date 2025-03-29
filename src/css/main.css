@@ -5,6 +5,13 @@
  * using the new modular architecture.
  */
 
+/* Import other CSS files */
+@import 'reset.css';
+@import 'game-board.css';
+@import 'game-panel.css';
+@import 'settings-modal.css';
+@import 'ui-components.css';
+
 /* CSS Variables for theming */
 :root {
     --primary-color: #3498db;

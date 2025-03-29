@@ -6,6 +6,7 @@
  */
 import { eventBus } from '../../api/eventBus.js';
 import { apiClient } from '../../api/apiClient.js';
+import { DEFAULT_MODEL_CONFIG } from './modelConfig.js';
 
 /**
  * Board state constants
@@ -48,6 +49,9 @@ export class BoardState {
         this.darkMode = false;
         this.backgroundColor = BoardStateConstants.BACKGROUND_TYPE.DEFAULT;
         
+        // Model settings
+        this.modelSettings = { ...DEFAULT_MODEL_CONFIG };
+        
         // Interaction state
         this.selectedTile = null;
         this.selectedPiece = null;
@@ -69,6 +73,14 @@ export class BoardState {
         this.cameraPosition = { x: 0, y: 15, z: 12 };
         this.cameraTarget = { x: 0, y: 0, z: 0 };
         this.zoomLevel = 1.0;
+        
+        // Game state cache
+        this.gameState = {
+            board: {
+                tiles: [],
+                pieces: []
+            }
+        };
         
         // Initialize event listeners
         this.setupEventListeners();
@@ -130,6 +142,11 @@ export class BoardState {
      * @param {Object} data - Updated game state data
      */
     handleGameStateChanged(data) {
+        // Cache the game state for use by getTiles and getPieces methods
+        if (data.state) {
+            this.gameState = data.state;
+        }
+        
         // Update last move highlight
         if (data.lastMove) {
             this.clearHighlightsByType(BoardStateConstants.HIGHLIGHT_TYPE.LAST_MOVE);
@@ -320,19 +337,53 @@ export class BoardState {
      * @param {Object} data - Settings data
      */
     handleSettingsChanged(data) {
-        if (data.animationsEnabled !== undefined) {
-            this.animationsEnabled = data.animationsEnabled;
-        }
-        
+        // Update dark mode
         if (data.darkMode !== undefined) {
             this.darkMode = data.darkMode;
         }
         
+        // Update animations
+        if (data.animationsEnabled !== undefined) {
+            this.animationsEnabled = data.animationsEnabled;
+        }
+        
+        // Update background
         if (data.backgroundColor !== undefined) {
             this.backgroundColor = data.backgroundColor;
         }
         
-        // Publish updated board state event
+        // Update model settings
+        if (data.modelSettings) {
+            const modelSettingsChanged = 
+                data.modelSettings.theme !== this.modelSettings.theme ||
+                data.modelSettings.quality !== this.modelSettings.quality;
+                
+            // Update settings
+            this.modelSettings = {
+                ...this.modelSettings,
+                ...data.modelSettings
+            };
+            
+            // If theme or quality changed, update the models via API
+            if (modelSettingsChanged) {
+                apiClient.request('configureModelLoading', {
+                    theme: this.modelSettings.theme,
+                    quality: this.modelSettings.quality,
+                    useFallbackIfLoadFails: this.modelSettings.useFallbackIfLoadFails,
+                    showLoadingProgress: this.modelSettings.showLoadingProgress
+                }).then(() => {
+                    // If needed, also trigger model reload
+                    if (data.modelSettings.reload) {
+                        apiClient.request('setModelTheme', {
+                            theme: this.modelSettings.theme,
+                            quality: this.modelSettings.quality
+                        });
+                    }
+                });
+            }
+        }
+        
+        // Publish updated state
         this.publishBoardStateUpdate();
     }
     
@@ -720,25 +771,129 @@ export class BoardState {
     }
     
     /**
-     * Publish a board state update event with current state
+     * Publish board state update event
      */
     publishBoardStateUpdate() {
-        eventBus.publish('board:stateUpdated', {
+        eventBus.publish('board:stateChanged', {
+            darkMode: this.darkMode,
+            animationsEnabled: this.animationsEnabled,
+            backgroundColor: this.backgroundColor,
+            modelSettings: this.modelSettings,
             selectedTile: this.selectedTile,
             selectedPiece: this.selectedPiece,
             hoveredTile: this.hoveredTile,
             hoveredPiece: this.hoveredPiece,
             highlightedTiles: Array.from(this.highlightedTiles.entries()),
-            validMoves: this.validMoves,
-            validPlacements: this.validPlacements,
             activeActionUI: this.activeActionUI,
+            validMoves: [...this.validMoves],
+            validPlacements: [...this.validPlacements],
             isAnimating: this.isAnimating,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * Get a serializable version of the board state
+     * @returns {Object} Serializable state object
+     */
+    getSerializableState() {
+        return {
+            // Visual settings
             darkMode: this.darkMode,
             backgroundColor: this.backgroundColor,
-            animationsEnabled: this.animationsEnabled
-        });
+            animationsEnabled: this.animationsEnabled,
+            modelSettings: {...this.modelSettings},
+            
+            // Interaction state
+            selectedTile: this.selectedTile,
+            selectedPiece: this.selectedPiece,
+            hoveredTile: this.hoveredTile,
+            hoveredPiece: this.hoveredPiece,
+            
+            // Convert Map to Object for serialization
+            highlightedTiles: Object.fromEntries(this.highlightedTiles),
+            
+            // Arrays
+            validMoves: [...this.validMoves],
+            validPlacements: [...this.validPlacements],
+            
+            // UI state
+            activeActionUI: this.activeActionUI,
+            
+            // Camera/view state
+            cameraPosition: {...this.cameraPosition},
+            cameraTarget: {...this.cameraTarget},
+            zoomLevel: this.zoomLevel,
+            
+            // Animation state - only send flags, not the actual animations
+            isAnimating: this.isAnimating,
+            hasActiveAnimations: this.activeAnimations.size > 0,
+            
+            // Timestamp for state tracking
+            timestamp: Date.now()
+        };
+    }
+
+    /**
+     * Get all tiles on the board
+     * @returns {Array} Array of tile objects
+     */
+    getTiles() {
+        return this.gameState?.board?.tiles || [];
+    }
+
+    /**
+     * Get a tile by its ID
+     * @param {string} tileId - The ID of the tile to get
+     * @returns {Object|null} The tile or null if not found
+     */
+    getTileById(tileId) {
+        const tiles = this.getTiles();
+        return tiles.find(tile => tile.id === tileId) || null;
+    }
+
+    /**
+     * Get a tile at specific coordinates
+     * @param {number} q - Q coordinate
+     * @param {number} r - R coordinate
+     * @returns {Object|null} The tile or null if not found
+     */
+    getTileAtCoordinates(q, r) {
+        const tiles = this.getTiles();
+        return tiles.find(tile => tile.q === q && tile.r === r) || null;
+    }
+
+    /**
+     * Get all pieces on the board
+     * @returns {Array} Array of piece objects
+     */
+    getPieces() {
+        return this.gameState?.board?.pieces || [];
+    }
+
+    /**
+     * Get a piece by its ID
+     * @param {string} pieceId - The ID of the piece to get
+     * @returns {Object|null} The piece or null if not found
+     */
+    getPieceById(pieceId) {
+        const pieces = this.getPieces();
+        return pieces.find(piece => piece.id === pieceId) || null;
+    }
+
+    /**
+     * Get pieces on a specific tile
+     * @param {string} tileId - The ID of the tile
+     * @returns {Array} Array of pieces on the tile
+     */
+    getPiecesOnTile(tileId) {
+        const pieces = this.getPieces();
+        return pieces.filter(piece => piece.tileId === tileId);
     }
 }
 
-// Create and export singleton instance
-export const boardState = new BoardState(); 
+// Create singleton instance but don't export it - keep it private to this module
+const boardState = new BoardState(); 
+
+// Export only the BoardState class, not the instance
+// Using the class, the board module will create and manage its own instance 

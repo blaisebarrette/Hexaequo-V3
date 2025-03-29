@@ -10,12 +10,14 @@ import { PlayerInfo } from './components/playerInfo.js';
 import { PieceInventory } from './components/pieceInventory.js';
 import { ActionButtons } from './components/actionButtons.js';
 import { ModalManager } from './components/modalManager.js';
+import { SettingsModal } from './components/settingsModal.js';
 
 // Panel components
 let playerInfo = null;
 let pieceInventory = null;
 let actionButtons = null;
 let modalManager = null;
+let settingsModal = null;
 
 // Settings
 let settings = {
@@ -32,6 +34,7 @@ export function initializePanelModule(config = {}) {
     console.log('Initializing Panel Module');
     
     // Get containers
+    const panelContainer = document.getElementById('game-panel');
     const playerInfoContainer = document.getElementById('player-info');
     const pieceInventoryContainer = document.getElementById('piece-inventory');
     const actionButtonsContainer = document.getElementById('action-buttons');
@@ -42,6 +45,7 @@ export function initializePanelModule(config = {}) {
     pieceInventory = new PieceInventory(pieceInventoryContainer);
     actionButtons = new ActionButtons(actionButtonsContainer);
     modalManager = new ModalManager(modalContainer);
+    settingsModal = new SettingsModal(modalContainer);
     
     // Setup event listeners
     setupEventListeners();

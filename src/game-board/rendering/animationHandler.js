@@ -6,7 +6,6 @@
  */
 import * as THREE from 'three';
 import { eventBus } from '../../api/eventBus.js';
-import { boardState } from '../core/boardState.js';
 
 /**
  * Constants for animation configuration
@@ -56,7 +55,8 @@ export const ANIMATION_CONFIG = {
  * AnimationHandler - Handles animations for 3D objects in the game
  */
 export class AnimationHandler {
-    constructor() {
+    constructor(boardState) {
+        this.boardState = boardState;
         this.animations = new Map(); // Store active animations
         this.animationId = 0; // Unique ID for animations
         
@@ -92,7 +92,7 @@ export class AnimationHandler {
      * @returns {Promise} - Promise that resolves when animation completes
      */
     animatePosition(object, startPos, endPos, options = {}) {
-        if (!boardState.animationsEnabled) {
+        if (!this.boardState.animationsEnabled) {
             object.position.copy(endPos);
             return Promise.resolve();
         }
@@ -118,7 +118,7 @@ export class AnimationHandler {
         }
 
         // Register animation with board state
-        boardState.addActiveAnimation(id);
+        this.boardState.addActiveAnimation(id);
 
         return this.createAnimation(object, {
             id,
@@ -141,7 +141,7 @@ export class AnimationHandler {
      * @returns {Promise} - Promise that resolves when animation completes
      */
     animateOpacity(object, startOpacity, endOpacity, options = {}) {
-        if (!boardState.animationsEnabled) {
+        if (!this.boardState.animationsEnabled) {
             this.setObjectOpacity(object, endOpacity);
             return Promise.resolve();
         }
@@ -154,7 +154,7 @@ export class AnimationHandler {
         } = options;
         
         // Register animation with board state
-        boardState.addActiveAnimation(id);
+        this.boardState.addActiveAnimation(id);
 
         return this.createAnimation(object, {
             id,
@@ -213,7 +213,7 @@ export class AnimationHandler {
      * @returns {Promise} - Promise that resolves when animation completes
      */
     animatePositionWithArc(object, startPos, midPos, endPos, options = {}) {
-        if (!boardState.animationsEnabled) {
+        if (!this.boardState.animationsEnabled) {
             object.position.copy(endPos);
             return Promise.resolve();
         }
@@ -239,7 +239,7 @@ export class AnimationHandler {
         );
 
         // Register animation with board state
-        boardState.addActiveAnimation(id);
+        this.boardState.addActiveAnimation(id);
 
         return this.createAnimation(object, {
             id,
@@ -353,7 +353,7 @@ export class AnimationHandler {
         this.animations.delete(id);
         
         // Notify board state that animation is complete
-        boardState.removeActiveAnimation(id);
+        this.boardState.removeActiveAnimation(id);
     }
 
     /**
@@ -405,8 +405,97 @@ export class AnimationHandler {
                 }
             };
             
-            boardState.queueAnimation(runAnimation);
+            this.boardState.queueAnimation(runAnimation);
         });
+    }
+
+    /**
+     * Animate a single property of an object
+     * @param {Object} object - The object with the property to animate
+     * @param {string} property - The property name to animate
+     * @param {number} startValue - Starting value
+     * @param {number} endValue - Ending value
+     * @param {Object} options - Animation options
+     * @returns {Promise} - Promise that resolves when animation completes
+     */
+    animateProperty(object, property, startValue, endValue, options = {}) {
+        if (!this.boardState.animationsEnabled) {
+            object[property] = endValue;
+            if (options.onComplete) options.onComplete();
+            return Promise.resolve();
+        }
+
+        const {
+            easing = ANIMATION_CONFIG.EASING.LINEAR,
+            duration = ANIMATION_CONFIG.DURATION,
+            onUpdate = null,
+            onComplete = null,
+            id = `prop_${this.animationId++}`
+        } = options;
+
+        // If start and end values are the same, no need to animate
+        if (startValue === endValue) {
+            if (onComplete) onComplete();
+            return Promise.resolve();
+        }
+
+        // Register animation with board state
+        this.boardState.addActiveAnimation(id);
+
+        return new Promise((resolve) => {
+            const animation = {
+                id,
+                object,
+                property,
+                startValue,
+                endValue,
+                startTime: performance.now(),
+                duration,
+                easing,
+                onUpdate,
+                onComplete,
+                resolve
+            };
+
+            this.animations.set(id, animation);
+            this.animatePropertyFrame(id);
+        });
+    }
+
+    /**
+     * Process a single frame of property animation
+     * @param {string} id - Animation ID
+     */
+    animatePropertyFrame(id) {
+        const animation = this.animations.get(id);
+        if (!animation) return;
+
+        const now = performance.now();
+        const elapsed = now - animation.startTime;
+        const progress = Math.min(elapsed / animation.duration, 1);
+
+        // Apply easing
+        const easedProgress = animation.easing(progress);
+
+        // Update property
+        const newValue = animation.startValue + (animation.endValue - animation.startValue) * easedProgress;
+        animation.object[animation.property] = newValue;
+
+        // Call update callback if provided
+        if (animation.onUpdate) {
+            animation.onUpdate(newValue, easedProgress);
+        }
+
+        // Check if animation is complete
+        if (progress >= 1) {
+            // Ensure final value is set exactly
+            animation.object[animation.property] = animation.endValue;
+            
+            // Complete the animation
+            this.completeAnimation(id);
+        } else {
+            requestAnimationFrame(() => this.animatePropertyFrame(id));
+        }
     }
 }
 

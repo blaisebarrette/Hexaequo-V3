@@ -87,8 +87,10 @@ async function initializeApplication() {
         console.log('Game logic module initialized');
         
         // 2. Initialize game board module (handles 3D rendering and interactions)
-        const boardModule = initializeBoardModule();
-        boardRenderer = boardModule.renderer;
+        const boardInitialized = initializeBoardModule();
+        if (!boardInitialized) {
+            throw new Error('Failed to initialize board module');
+        }
         console.log('Game board module initialized');
         
         // 3. Initialize game panel module (handles UI elements and controls)
@@ -98,6 +100,9 @@ async function initializeApplication() {
         // Check API status
         console.log('Checking API initialization:');
         checkAPIStatus();
+        
+        // Setup event listeners for module communication
+        setupModuleCommunication();
         
         // Mark as initialized
         isInitialized = true;
@@ -350,15 +355,45 @@ function checkAPIStatus() {
     };
 }
 
+/**
+ * Setup communication between modules
+ * All module interaction must go through the API or event bus
+ */
+function setupModuleCommunication() {
+    // Subscribe to the board module initialization event
+    eventBus.subscribe('board:initialized', (data) => {
+        console.log('Board module initialization completed:', data);
+    });
+    
+    // Subscribe to model loading events
+    eventBus.subscribe('board:modelsLoaded', (data) => {
+        console.log('3D models loaded successfully:', data);
+        modelsLoaded = true;
+        
+        // Load game or start new once models are loaded
+        loadGameOrStartNew();
+    });
+}
+
 // Export for debugging
+// WARNING: This export bypasses the modular architecture and should only be used for debugging
+// It should be removed or disabled in production builds
 window.debugHexaequo = {
     eventBus,
     apiClient,
     apiServer,
     isInitialized,
     
-    // Add utility functions for direct testing
-    startNewGame,
-    loadSavedGame,
-    checkAPIStatus
+    // Use API-based methods instead of direct access
+    debug: {
+        startNewGame: () => apiClient.request('startNewGame'),
+        loadSavedGame: () => {
+            const savedState = sessionStorage.getItem('hexaequo_game_state');
+            if (savedState) {
+                return apiClient.request('loadGame', { state: JSON.parse(savedState) });
+            }
+            return Promise.reject(new Error('No saved game found'));
+        },
+        checkAPIStatus
+    }
 }; 

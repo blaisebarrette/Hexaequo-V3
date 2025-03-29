@@ -169,6 +169,15 @@ export const UIAPI = {
     },
     
     /**
+     * Get whether valid moves are currently visible
+     * @returns {boolean} Whether valid moves are visible
+     */
+    isValidMovesVisible: {
+        params: [],
+        description: 'Get whether valid moves are currently visible'
+    },
+    
+    /**
      * Show piece placement UI at the specified coordinates
      * @param {number} q - Q coordinate in axial coordinate system
      * @param {number} r - R coordinate in axial coordinate system
@@ -208,53 +217,152 @@ export const UIAPI = {
     },
     
     /**
+     * Show tile placement UI for a position
+     * @param {number} q - Q coordinate
+     * @param {number} r - R coordinate
+     */
+    showTilePlacementUIForPosition: {
+        params: {
+            q: 'number',
+            r: 'number'
+        }
+    },
+    
+    /**
+     * Show piece placement UI for a tile
+     * @param {number} q - Q coordinate
+     * @param {number} r - R coordinate
+     * @param {string} color - The color of the piece
+     */
+    showPiecePlacementUIForTile: {
+        params: {
+            q: 'number',
+            r: 'number',
+            color: 'string'
+        }
+    },
+    
+    /**
+     * Toggle visibility of valid action placeholders
+     * @param {boolean} visible - Whether placeholders should be visible
+     */
+    toggleValidActionPlaceholdersVisibility: {
+        params: {
+            visible: 'boolean'
+        }
+    },
+    
+    /**
+     * Select a piece type
+     * @param {string} pieceType - The type of piece to select
+     */
+    selectPieceType: {
+        params: {
+            pieceType: 'string'
+        }
+    },
+    
+    /**
+     * Get the current board state
+     */
+    getBoardState: {
+        params: {}
+    },
+    
+    /**
      * Toggle dark mode
-     * @param {boolean} enabled - Whether dark mode should be enabled
+     * @param {boolean} enabled - Whether to enable dark mode
      */
     toggleDarkMode: {
-        params: ['enabled'],
-        description: 'Toggle dark mode'
+        params: {
+            enabled: 'boolean'
+        }
+    },
+    
+    /**
+     * Update the background color
+     * @param {string} type - The background type ('default', 'wood', 'stone', 'marble')
+     */
+    updateBackgroundColor: {
+        params: {
+            type: 'string'
+        }
+    },
+    
+    /**
+     * Update board visualization settings
+     * @param {Object} settings - Settings object with properties:
+     *   - darkMode: boolean
+     *   - backgroundColor: string
+     *   - animationsEnabled: boolean
+     *   - modelSettings: Object
+     */
+    updateBoardSettings: {
+        params: {
+            settings: 'object'
+        }
+    },
+    
+    /**
+     * Reset the scene
+     * @param {boolean} keepSettings - Whether to keep current settings
+     */
+    resetScene: {
+        params: {
+            keepSettings: 'boolean'
+        }
+    },
+    
+    /**
+     * Get the current model settings
+     */
+    getModelSettings: {
+        params: {}
+    },
+    
+    /**
+     * Update model settings
+     * @param {Object} settings - Model settings object with properties:
+     *   - theme: string
+     *   - quality: string
+     */
+    updateModelSettings: {
+        params: {
+            settings: 'object'
+        }
+    },
+    
+    /**
+     * Refresh models with current settings
+     */
+    refreshModels: {
+        params: {}
+    },
+    
+    /**
+     * Get available model themes
+     */
+    getAvailableModelThemes: {
+        params: {}
+    },
+    
+    /**
+     * Get available model quality levels
+     */
+    getAvailableModelQualities: {
+        params: {}
     }
 };
 
 /**
- * Animation API Methods
- * 
- * These methods handle animations within the game.
+ * Animation API methods
  */
 export const AnimationAPI = {
     /**
-     * Animate piece movement
-     * @param {number} fromQ - Starting Q coordinate
-     * @param {number} fromR - Starting R coordinate
-     * @param {number} toQ - Destination Q coordinate
-     * @param {number} toR - Destination R coordinate
-     * @returns {Promise} Promise that resolves when animation completes
-     */
-    animatePieceMovement: {
-        params: ['fromQ', 'fromR', 'toQ', 'toR'],
-        description: 'Animate piece movement'
-    },
-    
-    /**
-     * Animate piece placement
-     * @param {number} q - Q coordinate in axial coordinate system
-     * @param {number} r - R coordinate in axial coordinate system
-     * @param {string} color - Piece color ('black' or 'white')
-     * @param {string} type - Piece type ('disc' or 'ring')
-     * @returns {Promise} Promise that resolves when animation completes
-     */
-    animatePiecePlacement: {
-        params: ['q', 'r', 'color', 'type'],
-        description: 'Animate piece placement'
-    },
-    
-    /**
      * Animate tile placement
-     * @param {number} q - Q coordinate in axial coordinate system
-     * @param {number} r - R coordinate in axial coordinate system
-     * @param {string} color - Tile color ('black' or 'white')
-     * @returns {Promise} Promise that resolves when animation completes
+     * @param {number} q - Q coordinate
+     * @param {number} r - R coordinate
+     * @param {string} color - Tile color
      */
     animateTilePlacement: {
         params: ['q', 'r', 'color'],
@@ -262,10 +370,33 @@ export const AnimationAPI = {
     },
     
     /**
+     * Animate piece placement
+     * @param {number} q - Q coordinate
+     * @param {number} r - R coordinate
+     * @param {string} color - Piece color
+     * @param {string} type - Piece type
+     */
+    animatePiecePlacement: {
+        params: ['q', 'r', 'color', 'type'],
+        description: 'Animate piece placement'
+    },
+    
+    /**
+     * Animate piece movement
+     * @param {number} fromQ - Starting Q coordinate
+     * @param {number} fromR - Starting R coordinate
+     * @param {number} toQ - Destination Q coordinate
+     * @param {number} toR - Destination R coordinate
+     */
+    animatePieceMovement: {
+        params: ['fromQ', 'fromR', 'toQ', 'toR'],
+        description: 'Animate piece movement'
+    },
+    
+    /**
      * Animate piece capture
-     * @param {number} q - Q coordinate in axial coordinate system
-     * @param {number} r - R coordinate in axial coordinate system
-     * @returns {Promise} Promise that resolves when animation completes
+     * @param {number} q - Q coordinate of the captured piece
+     * @param {number} r - R coordinate of the captured piece
      */
     animatePieceCapture: {
         params: ['q', 'r'],
@@ -282,10 +413,83 @@ export const AnimationAPI = {
     }
 };
 
+/**
+ * Asset API Methods
+ * 
+ * These methods handle asset loading and configuration.
+ */
+export const AssetAPI = {
+    /**
+     * Get textures for game elements
+     * @returns {Object} Object containing texture URLs
+     */
+    getTextures: {
+        params: [],
+        description: 'Get textures for game elements'
+    }
+};
+
+/**
+ * Model Configuration API Methods
+ * 
+ * These methods handle 3D model loading and configuration.
+ */
+export const ModelConfigAPI = {
+    /**
+     * Get the current model loading status
+     * @returns {Object} Model loading status and configuration
+     */
+    getModelLoadingStatus: {
+        params: [],
+        description: 'Get the current model loading status'
+    },
+    
+    /**
+     * Retry loading failed models
+     * @param {Array} models - Names of models to retry loading
+     * @returns {Object} Updated loading status
+     */
+    retryModelLoading: {
+        params: ['models'],
+        description: 'Retry loading failed models'
+    },
+    
+    /**
+     * Configure model loading parameters
+     * @param {Object} config - Configuration options
+     * @returns {Object} Updated configuration
+     */
+    configureModelLoading: {
+        params: ['config'],
+        description: 'Configure model loading parameters'
+    },
+    
+    /**
+     * Get available model themes and qualities
+     * @returns {Object} Available themes and qualities
+     */
+    getAvailableModelThemes: {
+        params: [],
+        description: 'Get available model themes and qualities'
+    },
+    
+    /**
+     * Set the current model theme
+     * @param {Object} params - Theme parameters
+     * @returns {Object} Result of the theme change
+     */
+    setModelTheme: {
+        params: ['theme', 'quality'],
+        description: 'Set the current model theme'
+    }
+};
+
 // Combine all API methods into a single object
 export const API = {
     ...GameStateAPI,
     ...BoardActionAPI,
     ...UIAPI,
-    ...AnimationAPI
+    ...AnimationAPI,
+    ...AssetAPI,
+    ...ModelConfigAPI
 }; 
