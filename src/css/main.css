@@ -1,394 +1,368 @@
-/* Base Styles */
+/* 
+ * Hexaequo - Main Stylesheet
+ * 
+ * This stylesheet defines the layout and appearance for the Hexaequo game
+ * using the new modular architecture.
+ */
+
+/* CSS Variables for theming */
 :root {
-    --primary-color: #333;
-    --secondary-color: #f0f0f0;
-    --accent-color: #2c7873;
-    --black-piece-color: #333;
-    --white-piece-color: #f0f0f0;
-    --valid-move-color: rgba(0, 255, 0, 0.5);
-    --background-color: #ffffff;
+    --primary-color: #3498db;
+    --secondary-color: #2c3e50;
+    --background-color: #f5f5f5;
     --text-color: #333;
-    --modal-background: #ffffff;
-    --modal-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    --highlight-color: #e74c3c;
+    --player-black: #333;
+    --player-white: #f5f5f5;
+    --modal-background: rgba(0, 0, 0, 0.7);
+    --padding: 16px;
+    --border-radius: 6px;
+    --vh: 1vh;
 }
 
-/* Dark Mode */
-body.dark-mode {
-    --primary-color: #f0f0f0;
-    --secondary-color: #333;
+/* Dark mode variables */
+:root.dark-mode {
+    --primary-color: #2980b9;
+    --secondary-color: #34495e;
     --background-color: #1a1a1a;
-    --text-color: #f0f0f0;
-    --modal-background: #2a2a2a;
-    --modal-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    --text-color: #f5f5f5;
+    --highlight-color: #c0392b;
 }
 
+/* Base styles */
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    line-height: 1.6;
+html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--background-color);
     color: var(--text-color);
-    transition: background-color 0.3s, color 0.3s;
 }
 
-/* Game Container */
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+button {
+    cursor: pointer;
+    padding: 8px 16px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    transition: background-color 0.2s ease;
+}
+
+button:hover {
+    background-color: var(--secondary-color);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Main game container */
 .game-container {
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Fallback */
-    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    height: calc(var(--vh, 1vh) * 100); /* Use custom viewport height variable */
-    max-height: -webkit-fill-available; /* For iOS Safari */
+    width: 100%;
+    height: 100vh; /* fallback */
+    height: calc(var(--vh, 1vh) * 100);
     overflow: hidden;
-    position: relative;
 }
 
-/* Game Board */
+/* Game board (3D view) */
 #game-board {
     flex: 1;
-    width: 100%;
-    background-color: var(--secondary-color);
+    background-color: var(--background-color);
     overflow: hidden;
     position: relative;
 }
 
-/* Game Status Panel */
-#game-status {
-    padding: 0.5rem;
-    background-color: var(--background-color);
-    border-top: 1px solid var(--primary-color);
-}
-
-#current-player {
-    font-size: 1rem;
-    font-weight: bold;
-    margin-bottom: 0.25rem;
-    text-align: center;
-}
-
-.player-stats {
-    display: flex;
-    justify-content: space-around;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.player.black {
-    order: 1;
-}
-
-.player.white {
-    order: 2;
-}
-
-.player {
-    padding: 0.25rem;
-    border-radius: 4px;
-}
-
-.player h3 {
-    margin-bottom: 0.25rem;
-    text-align: center;
-    font-size: 0.9rem;
-}
-
-.piece-counts {
+/* Game panel (UI elements) */
+#game-panel {
+    background-color: var(--secondary-color);
+    color: white;
+    padding: var(--padding);
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 12px;
+    max-height: 40vh;
+    overflow-y: auto;
 }
 
-.piece-count {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.85rem;
-}
-
-.piece-icon {
-    display: inline-block;
-    width: 1.5rem;
-    text-align: center;
-    font-size: 2rem;
-    position: relative;
-    top: -0.15rem;
-    color: var(--primary-color);
-    line-height: 1rem;
-}
-
-/* Mobile Portrait Layout */
-@media (max-width: 480px){
-    #game-status {
-        padding: 0.3rem 0.5rem;
-    }
-    
-    #current-player {
-        font-size: 0.9rem;
-        margin-bottom: 0.15rem;
-    }
-    
-    .player-stats {
-        flex-direction: column;
-        gap: 0.15rem;
-    }
-    
-    .player {
-        display: flex;
-        align-items: center;
-        width: 100%;
-        border-radius: 4px;
-        padding: 0.25rem 0.4rem;
-    }
-    
-    .player.black {
-        background-color: var(--black-piece-color);
-        color: var(--white-piece-color);
-    }
-    
-    .player.white {
-        background-color: var(--white-piece-color);
-        color: var(--black-piece-color);
-    }
-    
-    /* Ensure icons inherit the player's text color */
-    .player.black .piece-icon {
-        color: var(--white-piece-color);
-    }
-    
-    .player.white .piece-icon {
-        color: var(--black-piece-color);
-    }
-    
-    .player h3 {
-        margin: 0;
-        width: 40px;
-        text-align: left;
-        font-size: 0.8rem;
-    }
-    
-    .piece-counts {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        flex: 1;
-        gap: 0.5rem;
-        margin-left: 0.25rem;
-        justify-content: space-between;
-    }
-    
-    .piece-count {
-        display: flex;
-        align-items: center;
-        gap: 0.2rem;
-        white-space: nowrap;
-    }
-
-    .ring-icon {
-        font-size: 1.3rem;
-    }
-    
-    #new-game-button {
-        font-size: 0.8rem;
-    }
-}
-
-/* Phone Landscape Layout */
-@media (max-height: 500px) and (orientation: landscape) {
+@media (min-width: 768px) {
     .game-container {
         flex-direction: row;
     }
     
-    #game-board {
-        flex: 3;
-    }
-    
-    #game-status {
-        flex: 1;
-        max-width: 150px;
-        padding: 0.2rem;
-        border-top: none;
-        border-left: 1px solid var(--primary-color);
-    }
-    
-    #current-player {
-        font-size: 0.85rem;
-        margin-bottom: 0.15rem;
-    }
-    
-    .player-stats {
-        gap: 0.2rem;
-    }
-    
-    .player {
-        padding: 0.2rem;
-    }
-    
-    .player.black {
-        background-color: var(--black-piece-color);
-        color: var(--white-piece-color);
-    }
-    
-    .player.white {
-        background-color: var(--white-piece-color);
-        color: var(--black-piece-color);
-    }
-    
-    /* Ensure icons inherit the player's text color */
-    .player.black .piece-icon {
-        color: var(--white-piece-color);
-    }
-    
-    .player.white .piece-icon {
-        color: var(--black-piece-color);
-    }
-    
-    .player h3 {
-        font-size: 0.75rem;
-        margin-bottom: 0.15rem;
-    }
-    
-    .piece-counts {
-        gap: 0.15rem;
-    }
-    
-    .piece-count {
-        font-size: 0.75rem;
-    }
-    
-    .piece-icon {
-        font-size: 1.2rem;
-        width: 1.2rem;
-    }
-    
-    #new-game-button {
-        padding: 0.3rem;
-        margin-top: 0.3rem;
-        font-size: 0.75rem;
+    #game-panel {
+        width: 320px;
+        max-height: 100vh;
     }
 }
 
-/* Settings Button */
-#settings-button {
-    position: absolute;
-    top: 0.4rem;
-    left: 0.4rem;
-    background: var(--background-color);
-    border: 1px solid var(--primary-color);
+/* Player info section */
+#player-info {
+    padding: 8px;
+    border-radius: var(--border-radius);
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.game-status {
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.player-indicator {
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
-    width: 3rem;
-    height: 3rem;
-    font-size: 1.5rem;
+    margin: 0 auto;
+}
+
+.player-black {
+    background-color: var(--player-black);
+}
+
+.player-white {
+    background-color: var(--player-white);
+    border: 1px solid #888;
+}
+
+/* Piece inventory */
+#piece-inventory {
+    padding: 8px;
+    border-radius: var(--border-radius);
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.player-inventory {
+    margin-bottom: 12px;
+    padding: 8px;
+    border-radius: var(--border-radius);
+}
+
+.player-inventory h3 {
+    margin-bottom: 8px;
+}
+
+.player-inventory.active {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.pieces-container {
+    display: flex;
+    justify-content: space-between;
+}
+
+.piece-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     cursor: pointer;
+    padding: 8px;
+    border-radius: var(--border-radius);
+}
+
+.piece-container.selected {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.piece-container.available {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.piece-icon {
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10;
+    font-size: 1.5rem;
 }
 
-/* Modal Styles */
-.modal {
-    display: none;
+/* Action buttons */
+#action-buttons {
+    padding: 8px;
+    border-radius: var(--border-radius);
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.action-buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.game-action-buttons, .game-control-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.action-button.active {
+    background-color: var(--highlight-color);
+}
+
+/* Modal system */
+#modal-container {
     position: fixed;
-    z-index: 100;
-    left: 0;
     top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--modal-background);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal {
+    background-color: white;
+    color: var(--text-color);
+    border-radius: var(--border-radius);
+    max-width: 90%;
+    max-height: 90%;
+    width: 480px;
+    display: none;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .modal.active {
     display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 16px;
+    background-color: var(--primary-color);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.hidden {
-    display: none;
-}
-
 .modal-content {
-    background-color: var(--modal-background);
-    padding: 2rem;
-    border-radius: 5px;
-    max-width: 500px;
-    width: 90%;
-    max-height: 80vh;
+    padding: 16px;
     overflow-y: auto;
-    box-shadow: var(--modal-shadow);
-    position: relative;
+    flex: 1;
 }
 
-.close-button {
-    position: absolute;
-    top: 0.5rem;
-    right: 1rem;
-    font-size: 1.5rem;
-    cursor: pointer;
+.modal-footer {
+    padding: 16px;
+    background-color: #f5f5f5;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
-.setting {
-    margin-bottom: 1rem;
+.modal.notification-modal {
+    width: 320px;
 }
 
-#rules-button {
-    padding: 0.5rem 1rem;
-    background-color: var(--accent-color);
+.modal.confirmation-modal {
+    width: 360px;
+}
+
+/* Settings form */
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.settings-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Animations */
+.animations-enabled .modal {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dark mode styles */
+.dark-mode #game-board {
+    background-color: #121212;
+}
+
+.dark-mode .modal {
+    background-color: #333;
     color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 1rem;
 }
 
-/* Responsive Design */
-@media (min-width: 480px) {
-    .game-container {
-        flex-direction: row;
+.dark-mode .modal-footer {
+    background-color: #222;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+    #game-panel {
+        max-height: 40vh;
     }
     
-    #game-board {
-        flex: 4;
-    }
-    
-    #game-status {
-        flex: 1;
-        max-width: 200px;
-        border-top: none;
-        border-left: 1px solid var(--primary-color);
+    .game-action-buttons, .game-control-buttons {
+        grid-template-columns: 1fr 1fr;
     }
 }
 
-/* Icons */
-.tile-icon {
-    font-size: 1.5rem;
-}
-
-.disc-icon {
-    font-size: 1.5rem;
-}
-
-/* New Game Button */
-#new-game-button {
-    display: block;
-    width: 100%;
-    padding: 0.5rem;
-    margin-top: 0.5rem;
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-#new-game-button:hover {
-    background-color: #205e5a;
+@media (max-width: 480px) {
+    .modal {
+        max-width: 95%;
+    }
 } 
+
+.player-inventory.player-white{
+    color: black;
+}

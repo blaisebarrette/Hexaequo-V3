@@ -1,15 +1,47 @@
 /**
  * StorageManager - Handles saving and loading game state to/from session storage
  */
+import { eventBus, EventTypes } from '../../api/eventBus.js';
+import { apiClient } from '../../api/apiClient.js';
+
 export class StorageManager {
-    constructor(gameState) {
-        this.gameState = gameState;
+    constructor() {
         this.storageKey = 'hexaequo_game_state';
+        
+        // Set up event listeners for auto-saving
+        this.setupAutoSave();
+    }
+    
+    /**
+     * Set up event listeners for automatically saving the game
+     */
+    setupAutoSave() {
+        // Save on critical game state changes
+        const saveEvents = [
+            EventTypes.TURN_ENDED,
+            EventTypes.PIECE_PLACED,
+            EventTypes.PIECE_MOVED,
+            EventTypes.PIECE_CAPTURED,
+            EventTypes.TILE_PLACED,
+            EventTypes.GAME_ENDED
+        ];
+        
+        // Listen for events and save the game
+        for (const eventType of saveEvents) {
+            eventBus.subscribe(eventType, async () => {
+                try {
+                    await apiClient.request('saveGame');
+                } catch (error) {
+                    console.error('Failed to auto-save game:', error);
+                }
+            });
+        }
     }
     
     /**
      * Save the current game state to session storage
      * @param {Object} state - Serializable game state
+     * @returns {boolean} Success status
      */
     saveGame(state) {
         try {
@@ -18,6 +50,14 @@ export class StorageManager {
             return true;
         } catch (error) {
             console.error('Error saving game state:', error);
+            
+            // Publish error event
+            eventBus.publish(EventTypes.ERROR_OCCURRED, {
+                source: 'storage',
+                message: 'Failed to save game state',
+                details: error
+            });
+            
             return false;
         }
     }
@@ -37,12 +77,21 @@ export class StorageManager {
             return JSON.parse(serializedState);
         } catch (error) {
             console.error('Error loading game state:', error);
+            
+            // Publish error event
+            eventBus.publish(EventTypes.ERROR_OCCURRED, {
+                source: 'storage',
+                message: 'Failed to load game state',
+                details: error
+            });
+            
             return null;
         }
     }
     
     /**
      * Clear saved game state from session storage
+     * @returns {boolean} Success status
      */
     clearSavedGame() {
         try {
@@ -50,6 +99,14 @@ export class StorageManager {
             return true;
         } catch (error) {
             console.error('Error clearing saved game:', error);
+            
+            // Publish error event
+            eventBus.publish(EventTypes.ERROR_OCCURRED, {
+                source: 'storage',
+                message: 'Failed to clear saved game',
+                details: error
+            });
+            
             return false;
         }
     }
